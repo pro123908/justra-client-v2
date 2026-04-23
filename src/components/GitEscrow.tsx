@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./git-escrow.css";
+import Navbar from "./app/Navbar";
 
 /* ---------------- helpers ---------------- */
 const fmtBytes = (b: number) => {
@@ -707,24 +708,7 @@ export default function GitEscrow() {
     <div className="git-escrow-root">
       <div className="wrap">
         {/* TOP BAR */}
-        <div className="topbar">
-          <div className="brand">
-            <div className="brand-mark">
-              G<span style={{ color: "var(--ink-dim)" }}>/</span>E
-            </div>
-            <div>
-              <div className="brand-name">GIT ESCROW</div>
-              <div className="brand-sub">Verification Console · v0.4.2</div>
-            </div>
-          </div>
-          <div className="top-meta">
-            <div className="kv">
-              <span className="dot" />5 MODELS ONLINE
-            </div>
-            <div className="kv">ESCROW #GE-48201</div>
-            <div className="kv">SOLANA · MAINNET</div>
-          </div>
-        </div>
+        <Navbar />
 
         {/* HERO */}
         <div className="hero">
