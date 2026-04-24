@@ -17,7 +17,9 @@ export type AuthUser = {
 
 type PhantomProvider = {
   isPhantom?: boolean;
-  connect: (opts?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey: { toString: () => string } }>;
+  connect: (opts?: {
+    onlyIfTrusted?: boolean;
+  }) => Promise<{ publicKey: { toString: () => string } }>;
   disconnect: () => Promise<void>;
 };
 
@@ -85,11 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  return (
-    <Ctx.Provider value={{ user, connectPhantom, setRole, logout }}>
-      {children}
-    </Ctx.Provider>
-  );
+  return <Ctx.Provider value={{ user, connectPhantom, setRole, logout }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

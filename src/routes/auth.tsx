@@ -9,7 +9,10 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Connect wallet — Git Escrow" },
-      { name: "description", content: "Connect your Phantom Solana wallet to access your Git Escrow workspace." },
+      {
+        name: "description",
+        content: "Connect your Phantom Solana wallet to access your Git Escrow workspace.",
+      },
     ],
   }),
 });
@@ -47,11 +50,15 @@ function AuthPage() {
       <div className="auth-shell">
         <div className="auth-card">
           <div className="auth-eyebrow">Authenticate · Step 1 of 2</div>
-          <h2>Connect your<br />Solana wallet.</h2>
+          <h2>
+            Connect your
+            <br />
+            Solana wallet.
+          </h2>
           <p className="auth-sub">
-            Connect your Phantom wallet to manage projects, milestones, and on-chain
-            escrow contracts. Sessions are scoped per-wallet and signed locally —
-            we never see your private keys.
+            Connect your Phantom wallet to manage projects, milestones, and on-chain escrow
+            contracts. Sessions are scoped per-wallet and signed locally — we never see your private
+            keys.
           </p>
 
           <button className="btn-google" onClick={onConnect} disabled={loading}>
@@ -59,11 +66,7 @@ function AuthPage() {
             <span>{loading ? "Connecting…" : "Connect Phantom Wallet"}</span>
           </button>
 
-          {error && (
-            <div className="auth-error">
-              {error}
-            </div>
-          )}
+          {error && <div className="auth-error">{error}</div>}
 
           <div className="auth-divider">Solana · Mainnet-Beta</div>
 
