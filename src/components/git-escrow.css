@@ -504,6 +504,77 @@ h1 em{font-style:normal;color:var(--neon);font-weight:500}
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--line)}
 .auth-fineprint{color:var(--ink-mute);font-size:10px;text-align:center;margin-top:24px;line-height:1.7;letter-spacing:0.05em}
 
+.phantom-mark{
+  background:linear-gradient(135deg,#ab9ff2,#534bb1) !important;
+  color:#fff !important;
+  font-size:14px !important;
+  box-shadow:0 0 14px rgba(171,159,242,0.45);
+}
+.auth-error{
+  margin-top:14px;border:1px solid var(--red);background:rgba(255,59,59,0.08);
+  color:#ffb3b3;padding:10px 12px;font-size:11px;letter-spacing:0.05em;line-height:1.6;
+}
+
+/* ---------------- role select ---------------- */
+.role-shell{
+  position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:40px 48px 120px;
+}
+.role-head{max-width:720px;margin-bottom:36px}
+.role-head h2{
+  font-family:var(--display);font-weight:500;font-size:38px;line-height:1.05;
+  letter-spacing:-0.01em;color:#eaffef;margin:8px 0 14px;
+}
+.role-sub{color:var(--ink-dim);font-size:13px;line-height:1.7;margin:0;max-width:640px}
+.role-wallet{
+  font-family:var(--mono);color:var(--neon);border:1px solid var(--line-2);
+  padding:2px 8px;margin:0 4px;letter-spacing:0.08em;
+}
+.role-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px;
+}
+.role-card{
+  text-align:left;font-family:var(--mono);color:var(--ink);
+  border:1px solid var(--line-2);
+  background:linear-gradient(180deg,rgba(13,26,21,0.9),rgba(7,16,13,0.9));
+  padding:32px;cursor:pointer;position:relative;
+  display:flex;flex-direction:column;gap:18px;
+  transition:border-color .25s,transform .25s,box-shadow .25s;
+  clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+}
+.role-card:hover{
+  border-color:var(--neon);transform:translateY(-3px);
+  box-shadow:0 18px 60px rgba(0,255,136,0.12),inset 0 0 40px rgba(0,255,136,0.04);
+}
+.role-card::before,.role-card::after{
+  content:'';position:absolute;width:14px;height:14px;border:1px solid var(--neon);opacity:.6;
+}
+.role-card::before{top:-1px;left:-1px;border-right:none;border-bottom:none}
+.role-card::after{bottom:-1px;right:-1px;border-left:none;border-top:none}
+.role-card-tag{
+  color:var(--neon);font-size:10px;letter-spacing:0.35em;text-transform:uppercase;
+}
+.role-card-title h3{
+  font-family:var(--display);font-weight:500;font-size:30px;line-height:1.1;
+  letter-spacing:-0.01em;color:#eaffef;margin:0 0 4px;
+}
+.role-card-title span{
+  color:var(--ink-dim);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;
+}
+.role-card-desc{color:var(--ink-dim);font-size:12px;line-height:1.7;margin:0}
+.role-card-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.role-card-list li{
+  display:flex;gap:10px;align-items:flex-start;
+  font-size:12px;color:var(--ink);line-height:1.5;
+  padding:8px 10px;border:1px solid var(--line);background:rgba(0,0,0,0.25);
+}
+.role-card-list .rcl-mark{color:var(--neon);font-weight:700}
+.role-card-cta{
+  margin-top:auto;display:flex;justify-content:space-between;align-items:center;
+  padding-top:16px;border-top:1px dashed var(--line);
+  color:var(--neon);font-size:11px;letter-spacing:0.25em;text-transform:uppercase;font-weight:600;
+}
+.role-card-cta .arrow{font-size:16px}
+
 /* ---------------- dashboard / projects ---------------- */
 .section-bar{
   display:flex;align-items:end;justify-content:space-between;
