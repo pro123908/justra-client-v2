@@ -4,7 +4,7 @@ import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
 import { useAuth } from "@/lib/auth";
-import { useAppData, type Milestone, type Project } from "@/lib/app-data";
+import { ProjectInvite, useAppData, type Milestone, type Project } from "@/lib/app-data";
 import "@/components/git-escrow.css";
 
 export const Route = createFileRoute("/projects/$projectId")({
@@ -21,15 +21,18 @@ const fmtDate = (s: string) => {
   if (!s) return "—";
   const d = new Date(s);
   if (isNaN(d.getTime())) return s;
-  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" }).toUpperCase();
+  return d
+    .toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })
+    .toUpperCase();
 };
 
 function ProjectDetailPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const { projectId } = Route.useParams();
   const {
     getProject,
+    fetchProject,
     addMilestone,
     setMilestoneStatus,
     inviteProvider,
@@ -37,20 +40,43 @@ function ProjectDetailPage() {
     cancelInvite,
   } = useAppData();
   const project = getProject(projectId);
-
   const [addOpen, setAddOpen] = useState(false);
   const [createdMs, setCreatedMs] = useState<Milestone | null>(null);
   const [viewMs, setViewMs] = useState<Milestone | null>(null);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     if (!user) navigate({ to: "/auth" });
     else if (!user.role) navigate({ to: "/role" });
   }, [user, navigate]);
 
+  useEffect(() => {
+    if (!token || !user?.role || project) return;
+    setFetching(true);
+    fetchProject(projectId)
+      .catch(() => setFetchError(true))
+      .finally(() => setFetching(false));
+  }, [token, user?.role, projectId, fetchProject, project]);
+
   if (!user || !user.role) return null;
 
-  if (!project) {
+  if (fetching) {
+    return (
+      <div className="git-escrow-root">
+        <div className="wrap">
+          <Navbar />
+          <div className="empty-state" style={{ marginTop: 60 }}>
+            <div className="ic">…</div>
+            <h3>Loading project</h3>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!project || fetchError) {
     return (
       <div className="git-escrow-root">
         <div className="wrap">
@@ -68,10 +94,8 @@ function ProjectDetailPage() {
     );
   }
 
-  const isOwner = project.ownerAddress === user.address;
-  const isProvider =
-    user.role === "provider" &&
-    project.providers.some((p) => p.address === user.address);
+  const isOwner = project.ownerId === user.id;
+  const isProvider = user.role === "provider" && project.providers.some((p) => p.id === user.id);
   const canManage = user.role === "consumer" && isOwner;
   const canApprove = user.role === "provider" && isProvider;
 
@@ -111,25 +135,46 @@ function ProjectDetailPage() {
             <div className="ph-id">▸ {project.id}</div>
             <h1>{project.name}</h1>
             <div className="ph-meta">
-              <span><b>{project.milestones.length}</b> milestones</span>
-              <span><b>{project.fileCount}</b> files attached</span>
-              <span>created <b>{fmtDate(project.createdAt)}</b></span>
-              <span>role <b style={{ color: "var(--neon)" }}>{user.role.toUpperCase()}</b></span>
+              <span>
+                <b>{project.milestones.length}</b> milestones
+              </span>
+              <span>
+                <b>{project.fileCount}</b> files attached
+              </span>
+              <span>
+                created <b>{fmtDate(project.createdAt)}</b>
+              </span>
+              <span>
+                role <b style={{ color: "var(--neon)" }}>{user.role.toUpperCase()}</b>
+              </span>
             </div>
           </div>
           {canManage && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}
+            >
               <button className="btn-action" onClick={() => setAccessOpen(true)}>
                 <span className="plus">⚙</span> Manage Access
               </button>
-              <div style={{ color: "var(--ink-mute)", fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                {project.providers.length} provider{project.providers.length === 1 ? "" : "s"} · {project.invites.length} pending
+              <div
+                style={{
+                  color: "var(--ink-mute)",
+                  fontSize: 11,
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {project.providers.length} provider{project.providers.length === 1 ? "" : "s"} ·{" "}
+                {project.invites.length} pending
               </div>
             </div>
           )}
         </div>
 
-        <div className="section-bar" style={{ marginTop: 28, borderBottom: "1px dashed var(--line)" }}>
+        <div
+          className="section-bar"
+          style={{ marginTop: 28, borderBottom: "1px dashed var(--line)" }}
+        >
           <div>
             <h2 style={{ fontSize: 26 }}>Milestones</h2>
             <div className="sub">
@@ -186,7 +231,9 @@ function ProjectDetailPage() {
                 </div>
                 <div className="ms-amount">
                   <b>◎ {m.amount || "—"}</b>
-                  <span>SOL · {m.fileCount} file{m.fileCount === 1 ? "" : "s"}</span>
+                  <span>
+                    SOL · {m.fileCount} file{m.fileCount === 1 ? "" : "s"}
+                  </span>
                 </div>
               </button>
             ))}
@@ -304,10 +351,7 @@ function MilestoneDetailModal({
                 <button className="btn" onClick={() => setRejecting(false)}>
                   Cancel
                 </button>
-                <button
-                  className="btn btn-danger"
-                  onClick={() => onReject(note.trim())}
-                >
+                <button className="btn btn-danger" onClick={() => onReject(note.trim())}>
                   Confirm rejection
                 </button>
               </div>
@@ -351,9 +395,7 @@ function MilestoneDetailModal({
 
         <div className="form-row" style={{ marginTop: 18 }}>
           <div className="form-label">▸ Description</div>
-          <div className="ms-detail-desc">
-            {milestone.description || "—"}
-          </div>
+          <div className="ms-detail-desc">{milestone.description || "—"}</div>
         </div>
 
         {milestone.rejectionNote && (
@@ -394,21 +436,23 @@ function ManageAccessModal({
   open: boolean;
   onClose: () => void;
   project: Project;
-  onInvite: (address: string) => void;
+  onInvite: (address: string) => Promise<ProjectInvite>;
   onCancelInvite: (address: string) => void;
   onRemove: (address: string) => void;
 }) {
   const [addr, setAddr] = useState("");
   const [err, setErr] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     if (open) {
       setAddr("");
       setErr("");
+      setInviting(false);
     }
   }, [open]);
 
-  const submit = () => {
+  const submit = async () => {
     const v = addr.trim();
     if (v.length < 32 || v.length > 64) {
       setErr("Enter a valid Solana wallet address.");
@@ -422,9 +466,16 @@ function ManageAccessModal({
       setErr("This wallet already has a pending invite.");
       return;
     }
-    onInvite(v);
-    setAddr("");
-    setErr("");
+    setInviting(true);
+    try {
+      await onInvite(v);
+      setAddr("");
+      setErr("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to send invite. Please try again.");
+    } finally {
+      setInviting(false);
+    }
   };
 
   return (
@@ -436,7 +487,9 @@ function ManageAccessModal({
       width={620}
       footer={
         <div className="modal-foot">
-          <div>{project.providers.length} active · {project.invites.length} pending</div>
+          <div>
+            {project.providers.length} active · {project.invites.length} pending
+          </div>
           <button className="btn" onClick={onClose}>
             Done
           </button>
@@ -454,11 +507,15 @@ function ManageAccessModal({
               onChange={(e) => setAddr(e.target.value)}
               style={{ flex: 1 }}
             />
-            <button className="btn btn-primary" onClick={submit}>
-              Invite
+            <button className="btn btn-primary" onClick={submit} disabled={inviting}>
+              {inviting ? "Inviting…" : "Invite"}
             </button>
           </div>
-          {err && <div className="auth-error" style={{ marginTop: 6 }}>{err}</div>}
+          {err && (
+            <div className="auth-error" style={{ marginTop: 6 }}>
+              {err}
+            </div>
+          )}
         </div>
 
         <div className="form-row">
@@ -474,7 +531,9 @@ function ManageAccessModal({
                     <div className="ar-name">{p.short}</div>
                     <div className="ar-meta">Joined {fmtDate(p.addedAt)}</div>
                   </div>
-                  <span className="ms-status approved"><span className="d" /> Active</span>
+                  <span className="ms-status approved">
+                    <span className="d" /> Active
+                  </span>
                   <button className="btn btn-danger small" onClick={() => onRemove(p.address)}>
                     Remove
                   </button>
@@ -497,7 +556,9 @@ function ManageAccessModal({
                     <div className="ar-name">{iv.short}</div>
                     <div className="ar-meta">Invited {fmtDate(iv.invitedAt)}</div>
                   </div>
-                  <span className="ms-status pending"><span className="d" /> Pending</span>
+                  <span className="ms-status pending">
+                    <span className="d" /> Pending
+                  </span>
                   <button className="btn small" onClick={() => onCancelInvite(iv.address)}>
                     Cancel
                   </button>
@@ -569,9 +630,15 @@ function AddMilestoneModal({
       title="Define checkpoint"
       footer={
         <div className="modal-foot">
-          <div>{files.length ? `${files.length} file${files.length > 1 ? "s" : ""} attached` : "No files attached"}</div>
+          <div>
+            {files.length
+              ? `${files.length} file${files.length > 1 ? "s" : ""} attached`
+              : "No files attached"}
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn" onClick={onClose}>
+              Cancel
+            </button>
             <button className="btn btn-primary" disabled={!valid} onClick={submit}>
               Create Milestone
             </button>
@@ -662,10 +729,17 @@ function AddMilestoneModal({
             <div className="modal-filelist" style={{ marginTop: 8 }}>
               {files.map((f, idx) => (
                 <div key={idx} className="file-row">
-                  <div className="ico">{(f.name.split(".").pop() || "").toUpperCase().slice(0, 4)}</div>
+                  <div className="ico">
+                    {(f.name.split(".").pop() || "").toUpperCase().slice(0, 4)}
+                  </div>
                   <div className="nm">{f.name}</div>
                   <div className="sz">{(f.size / 1024).toFixed(1)} KB</div>
-                  <button className="rm" onClick={() => setFiles((s) => s.filter((_, i) => i !== idx))}>×</button>
+                  <button
+                    className="rm"
+                    onClick={() => setFiles((s) => s.filter((_, i) => i !== idx))}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>

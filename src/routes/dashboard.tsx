@@ -20,13 +20,8 @@ export const Route = createFileRoute("/dashboard")({
 function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const {
-    createProject,
-    projectsOwnedBy,
-    projectsForProvider,
-    invitesForProvider,
-    acceptInvite,
-  } = useAppData();
+  const { createProject, projectsOwnedBy, projectsForProvider, invitesForProvider, acceptInvite } =
+    useAppData();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
@@ -43,13 +38,13 @@ function DashboardPage() {
       <ProviderDashboard
         projects={projectsForProvider(user.address)}
         invites={invitesForProvider(user.address)}
-        onAccept={(projectId) => acceptInvite(projectId, user.address, user.name)}
+        onAccept={(inviteId) => acceptInvite(inviteId)}
       />
     );
   }
 
   // Consumer
-  const projects = projectsOwnedBy(user.address);
+  const projects = projectsOwnedBy(user.id);
 
   return (
     <div className="git-escrow-root">
@@ -60,11 +55,16 @@ function DashboardPage() {
           <div>
             <div className="eyebrow" style={{ marginBottom: 10 }}>
               Workspace · {user.short}
-              {user.role && <span style={{ color: "var(--neon)", marginLeft: 10 }}>· {user.role.toUpperCase()}</span>}
+              {user.role && (
+                <span style={{ color: "var(--neon)", marginLeft: 10 }}>
+                  · {user.role.toUpperCase()}
+                </span>
+              )}
             </div>
             <h2>Projects</h2>
             <div className="sub">
-              {projects.length} {projects.length === 1 ? "project" : "projects"} under escrow management.
+              {projects.length} {projects.length === 1 ? "project" : "projects"} under escrow
+              management.
             </div>
           </div>
           <button className="btn-action" onClick={() => setCreateOpen(true)}>
@@ -93,9 +93,7 @@ function DashboardPage() {
           setCreateOpen(false);
           setCreatedProject(p);
         }}
-        createProject={(input) =>
-          createProject({ ...input, ownerAddress: user.address })
-        }
+        createProject={(input) => createProject(input)}
       />
 
       <SuccessModal
@@ -140,8 +138,11 @@ function ProviderDashboard({
   onAccept,
 }: {
   projects: Project[];
-  invites: Array<{ project: Project; invite: { address: string; short: string; invitedAt: string } }>;
-  onAccept: (projectId: string) => void;
+  invites: Array<{
+    project: Project;
+    invite: { id: string; address: string; short: string; invitedAt: string };
+  }>;
+  onAccept: (inviteId: string) => void;
 }) {
   const { user } = useAuth();
   if (!user) return null;
@@ -159,7 +160,8 @@ function ProviderDashboard({
             </div>
             <h2>Current projects</h2>
             <div className="sub">
-              {projects.length} active project{projects.length === 1 ? "" : "s"} delivering under escrow.
+              {projects.length} active project{projects.length === 1 ? "" : "s"} delivering under
+              escrow.
             </div>
           </div>
         </div>
@@ -191,17 +193,19 @@ function ProviderDashboard({
           </div>
         ) : (
           <div className="invite-grid">
-            {invites.map(({ project }) => (
-              <div key={project.id} className="invite-card">
+            {invites.map(({ project, invite }) => (
+              <div key={invite.id} className="invite-card">
                 <div>
                   <div className="pc-id">{project.id}</div>
                   <div className="pc-title">{project.name}</div>
                   <div className="invite-meta">
-                    Owner <b>{shorten(project.ownerAddress)}</b> · {project.milestones.length} milestone{project.milestones.length === 1 ? "" : "s"} · {project.fileCount} file{project.fileCount === 1 ? "" : "s"}
+                    Owner <b>{project.ownerId}</b> · {project.milestones.length} milestone
+                    {project.milestones.length === 1 ? "" : "s"} · {project.fileCount} file
+                    {project.fileCount === 1 ? "" : "s"}
                   </div>
                 </div>
                 <div className="invite-actions">
-                  <button className="btn btn-primary" onClick={() => onAccept(project.id)}>
+                  <button className="btn btn-primary" onClick={() => onAccept(invite.id)}>
                     Accept invite
                   </button>
                 </div>
@@ -212,10 +216,6 @@ function ProviderDashboard({
       </div>
     </div>
   );
-}
-
-function shorten(addr: string) {
-  return addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
 }
 
 function ProjectGrid({ projects }: { projects: Project[] }) {
@@ -243,7 +243,10 @@ function ProjectGrid({ projects }: { projects: Project[] }) {
             </div>
           )}
           <div className="pc-meta">
-            <span>{p.milestones.length} milestone{p.milestones.length === 1 ? "" : "s"} · {p.fileCount} file{p.fileCount === 1 ? "" : "s"}</span>
+            <span>
+              {p.milestones.length} milestone{p.milestones.length === 1 ? "" : "s"} · {p.fileCount}{" "}
+              file{p.fileCount === 1 ? "" : "s"}
+            </span>
             <span className="arrow">→</span>
           </div>
         </Link>
@@ -261,24 +264,23 @@ function CreateProjectModal({
   open: boolean;
   onClose: () => void;
   onCreated: (p: Project) => void;
-  createProject: (input: { name: string; fileNames: string[] }) => Project;
+  createProject: (input: { name: string; description: string }) => Promise<Project>;
 }) {
   const [name, setName] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
     if (open) {
       setName("");
-      setFiles([]);
+      setDescription("");
     }
   }, [open]);
 
   const valid = name.trim().length > 0;
 
-  const submit = () => {
+  const submit = async () => {
     if (!valid) return;
-    const p = createProject({ name: name.trim(), fileNames: files.map((f) => f.name) });
+    const p = await createProject({ name: name.trim(), description: description.trim() });
     onCreated(p);
   };
 
@@ -290,9 +292,11 @@ function CreateProjectModal({
       title="Define project"
       footer={
         <div className="modal-foot">
-          <div>{files.length ? `${files.length} file${files.length > 1 ? "s" : ""} attached` : "No files attached"}</div>
+          <div>{description.trim() ? "Description added" : "No description added"}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn" onClick={onClose}>
+              Cancel
+            </button>
             <button className="btn btn-primary" disabled={!valid} onClick={submit}>
               Create Project
             </button>
@@ -313,39 +317,14 @@ function CreateProjectModal({
         </div>
 
         <div className="form-row">
-          <label className="form-label">▸ Attach files</label>
-          <button className="form-attach" onClick={() => fileInput.current?.click()}>
-            <span className="plus">+</span>
-            <span style={{ flex: 1 }}>
-              <div>Attach project documents</div>
-              <span className="hint">Spec, contract, brief — any format</span>
-            </span>
-            <span style={{ color: "var(--ink-mute)" }}>→</span>
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const list = [...(e.target.files || [])];
-              if (list.length) setFiles((s) => [...s, ...list]);
-              e.target.value = "";
-            }}
+          <label className="form-label">▸ Project description</label>
+          <textarea
+            className="form-input"
+            placeholder="Write a short summary of the project scope, goals, or deliverables"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={5}
           />
-
-          {files.length > 0 && (
-            <div className="modal-filelist" style={{ marginTop: 8 }}>
-              {files.map((f, idx) => (
-                <div key={idx} className="file-row">
-                  <div className="ico">{(f.name.split(".").pop() || "").toUpperCase().slice(0, 4)}</div>
-                  <div className="nm">{f.name}</div>
-                  <div className="sz">{(f.size / 1024).toFixed(1)} KB</div>
-                  <button className="rm" onClick={() => setFiles((s) => s.filter((_, i) => i !== idx))}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </Modal>

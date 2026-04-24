@@ -1,17 +1,24 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { authApi, authMeApi, userApi } from "./api";
+
+const JWT_KEY = "jwt";
 
 export type UserRole = "provider" | "consumer";
 
+export type User = {
+  id: string;
+  publicKey: string;
+  role: UserRole | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type AuthUser = {
-  /** Full Solana wallet public key (base58) */
+  id: string;
   address: string;
-  /** Shortened display, e.g. 7xKX…d3Qa */
   short: string;
-  /** First char of the address for the avatar */
   initial: string;
-  /** Display name shown in navbar */
   name: string;
-  /** Role chosen after wallet connect */
   role: UserRole | null;
 };
 
@@ -21,6 +28,7 @@ type PhantomProvider = {
     onlyIfTrusted?: boolean;
   }) => Promise<{ publicKey: { toString: () => string } }>;
   disconnect: () => Promise<void>;
+  signMessage: (message: Uint8Array, encoding: "utf8") => Promise<{ signature: Uint8Array }>;
 };
 
 function getPhantom(): PhantomProvider | null {
@@ -34,60 +42,136 @@ function getPhantom(): PhantomProvider | null {
   return null;
 }
 
-type AuthCtx = {
-  user: AuthUser | null;
-  connectPhantom: () => Promise<AuthUser>;
-  setRole: (role: UserRole) => void;
-  logout: () => Promise<void>;
-};
-
-const Ctx = createContext<AuthCtx | null>(null);
+function uint8ArrayToBase58(bytes: Uint8Array): string {
+  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let result = "";
+  let num = BigInt(0);
+  for (const byte of bytes) {
+    num = num * BigInt(256) + BigInt(byte);
+  }
+  while (num > BigInt(0)) {
+    result = ALPHABET[Number(num % BigInt(58))] + result;
+    num = num / BigInt(58);
+  }
+  for (const byte of bytes) {
+    if (byte === 0) result = "1" + result;
+    else break;
+  }
+  return result;
+}
 
 function shorten(addr: string) {
   if (addr.length <= 10) return addr;
   return `${addr.slice(0, 4)}…${addr.slice(-4)}`;
 }
 
+type AuthCtx = {
+  user: AuthUser | null;
+  token: string | null;
+  isInitializing: boolean;
+  connectPhantom: () => Promise<AuthUser>;
+  setRole: (role: UserRole) => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+const Ctx = createContext<AuthCtx | null>(null);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(JWT_KEY);
+    if (!stored) {
+      setIsInitializing(false);
+      return;
+    }
+    authMeApi
+      .getMe(stored)
+      .then((serverUser) => {
+        setToken(stored);
+        const short = shorten(serverUser.publicKey);
+        setUser({
+          id: serverUser.id,
+          address: serverUser.publicKey,
+          short,
+          initial: serverUser.publicKey.charAt(0).toUpperCase(),
+          name: short,
+          role: serverUser.role,
+        });
+      })
+      .catch(() => {
+        localStorage.removeItem(JWT_KEY);
+      })
+      .finally(() => {
+        setIsInitializing(false);
+      });
+  }, []);
 
   const connectPhantom = async (): Promise<AuthUser> => {
-    const provider = getPhantom();
-    if (!provider) {
+    const phantom = getPhantom();
+    if (!phantom) {
       if (typeof window !== "undefined") {
         window.open("https://phantom.app/", "_blank", "noopener,noreferrer");
       }
       throw new Error("Phantom wallet not detected. Please install Phantom and retry.");
     }
-    const res = await provider.connect();
-    const address = res.publicKey.toString();
+
+    const { publicKey: publicKeyObj } = await phantom.connect();
+    const address = publicKeyObj.toString();
+
+    const { message, nonce } = await authApi.getMessage();
+
+    const encoded = new TextEncoder().encode(message);
+    const { signature: signatureBytes } = await phantom.signMessage(encoded, "utf8");
+    const signature = uint8ArrayToBase58(signatureBytes);
+
+    const { token: jwt, user: serverUser } = await authApi.authenticate({
+      publicKey: address,
+      signature,
+      nonce,
+    });
+
+    setToken(jwt);
+    localStorage.setItem(JWT_KEY, jwt);
+
     const short = shorten(address);
     const u: AuthUser = {
+      id: serverUser.id,
       address,
       short,
       initial: address.charAt(0).toUpperCase(),
       name: short,
-      role: null,
+      role: serverUser.role,
     };
     setUser(u);
     return u;
   };
 
-  const setRole = (role: UserRole) => {
+  const setRole = async (role: UserRole) => {
+    if (!token) throw new Error("Not authenticated");
+    await userApi.setRole(token, role);
     setUser((u) => (u ? { ...u, role } : u));
   };
 
   const logout = async () => {
-    const provider = getPhantom();
+    const phantom = getPhantom();
     try {
-      await provider?.disconnect();
+      await phantom?.disconnect();
     } catch {
       /* ignore */
     }
     setUser(null);
+    setToken(null);
+    localStorage.removeItem(JWT_KEY);
   };
 
-  return <Ctx.Provider value={{ user, connectPhantom, setRole, logout }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ user, token, isInitializing, connectPhantom, setRole, logout }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useAuth() {

@@ -1,9 +1,19 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+
+  function copyAddress() {
+    if (!user) return;
+    navigator.clipboard.writeText(user.address).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
@@ -19,16 +29,18 @@ export default function Navbar() {
       </Link>
 
       <div className="nav-actions">
-        <Link
-          to="/"
-          className={"nav-link" + (pathname === "/" ? " active" : "")}
-        >
+        <Link to="/" className={"nav-link" + (pathname === "/" ? " active" : "")}>
           Console
         </Link>
-        {user && (
+        {user && pathname !== "/role" && (
           <Link
             to="/dashboard"
-            className={"nav-link" + (pathname.startsWith("/dashboard") || pathname.startsWith("/projects") ? " active" : "")}
+            className={
+              "nav-link" +
+              (pathname.startsWith("/dashboard") || pathname.startsWith("/projects")
+                ? " active"
+                : "")
+            }
           >
             Dashboard
           </Link>
@@ -40,7 +52,21 @@ export default function Navbar() {
             <span>{user.name}</span>
             <button
               className="nav-link"
-              style={{ background: "none", border: "none", cursor: "pointer", paddingLeft: 10, borderLeft: "1px solid var(--line)" }}
+              title="Copy address"
+              style={{ background: "none", border: "none", cursor: "pointer" }}
+              onClick={copyAddress}
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+            <button
+              className="nav-link"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                paddingLeft: 10,
+                borderLeft: "1px solid var(--line)",
+              }}
               onClick={() => {
                 logout();
                 navigate({ to: "/" });

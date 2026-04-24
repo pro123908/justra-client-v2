@@ -18,29 +18,31 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const { user, connectPhantom } = useAuth();
+  const { user, isInitializing, connectPhantom } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
+    if (!isInitializing && user) {
       navigate({ to: user.role ? "/dashboard" : "/role" });
     }
-  }, [user, navigate]);
+  }, [user, isInitializing, navigate]);
 
   const onConnect = async () => {
     setLoading(true);
     setError(null);
     try {
-      await connectPhantom();
-      navigate({ to: "/role" });
+      const authedUser = await connectPhantom();
+      navigate({ to: authedUser.role ? "/dashboard" : "/role" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to connect wallet");
     } finally {
       setLoading(false);
     }
   };
+
+  if (isInitializing) return null;
 
   return (
     <div className="git-escrow-root">

@@ -9,7 +9,10 @@ export const Route = createFileRoute("/role")({
   head: () => ({
     meta: [
       { title: "Choose your role — Git Escrow" },
-      { name: "description", content: "Select whether you join Git Escrow as a Provider or Consumer." },
+      {
+        name: "description",
+        content: "Select whether you join Git Escrow as a Provider or Consumer.",
+      },
     ],
   }),
 });
@@ -24,8 +27,8 @@ function RolePage() {
 
   if (!user) return null;
 
-  const choose = (r: UserRole) => {
-    setRole(r);
+  const choose = async (r: UserRole) => {
+    await setRole(r);
     navigate({ to: "/dashboard" });
   };
 
@@ -39,9 +42,8 @@ function RolePage() {
           <div className="auth-eyebrow">Authenticate · Step 2 of 2</div>
           <h2>Select your role.</h2>
           <p className="role-sub">
-            Wallet connected as <span className="role-wallet">{user.short}</span>.
-            Choose how you'll participate in this escrow workspace. You can switch
-            workspaces at any time.
+            Wallet connected as <span className="role-wallet">{user.short}</span>. Choose how you'll
+            participate in this escrow workspace. You can switch workspaces at any time.
           </p>
         </div>
 
