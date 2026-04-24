@@ -8,26 +8,32 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
   head: () => ({
     meta: [
-      { title: "Sign in — Git Escrow" },
-      { name: "description", content: "Sign in to your Git Escrow workspace." },
+      { title: "Connect wallet — Git Escrow" },
+      { name: "description", content: "Connect your Phantom Solana wallet to access your Git Escrow workspace." },
     ],
   }),
 });
 
 function AuthPage() {
-  const { user, loginWithGoogle } = useAuth();
+  const { user, connectPhantom } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) navigate({ to: "/dashboard" });
+    if (user) {
+      navigate({ to: user.role ? "/dashboard" : "/role" });
+    }
   }, [user, navigate]);
 
-  const onGoogle = async () => {
+  const onConnect = async () => {
     setLoading(true);
+    setError(null);
     try {
-      await loginWithGoogle();
-      navigate({ to: "/dashboard" });
+      await connectPhantom();
+      navigate({ to: "/role" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to connect wallet");
     } finally {
       setLoading(false);
     }
@@ -40,22 +46,38 @@ function AuthPage() {
       </div>
       <div className="auth-shell">
         <div className="auth-card">
-          <div className="auth-eyebrow">Authenticate · Step 1 of 1</div>
-          <h2>Sign in to your<br />escrow workspace.</h2>
+          <div className="auth-eyebrow">Authenticate · Step 1 of 2</div>
+          <h2>Connect your<br />Solana wallet.</h2>
           <p className="auth-sub">
-            Authenticate to manage projects, milestones, and contracts.
-            Sessions are scoped per-workspace and end-to-end signed.
+            Connect your Phantom wallet to manage projects, milestones, and on-chain
+            escrow contracts. Sessions are scoped per-wallet and signed locally —
+            we never see your private keys.
           </p>
 
-          <button className="btn-google" onClick={onGoogle} disabled={loading}>
-            <span className="g-mark">G</span>
-            <span>{loading ? "Connecting…" : "Continue with Google"}</span>
+          <button className="btn-google" onClick={onConnect} disabled={loading}>
+            <span className="g-mark phantom-mark">◎</span>
+            <span>{loading ? "Connecting…" : "Connect Phantom Wallet"}</span>
           </button>
 
-          <div className="auth-divider">Secure OAuth · 2.0</div>
+          {error && (
+            <div className="auth-error">
+              {error}
+            </div>
+          )}
+
+          <div className="auth-divider">Solana · Mainnet-Beta</div>
 
           <p className="auth-fineprint">
-            By continuing you agree to the escrow terms.<br />
+            By connecting you agree to the escrow terms. Don't have Phantom?{" "}
+            <a
+              href="https://phantom.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--neon)", textDecoration: "none" }}
+            >
+              Install →
+            </a>
+            <br />
             <Link to="/" style={{ color: "var(--neon)", textDecoration: "none" }}>
               ← Back to console
             </Link>
