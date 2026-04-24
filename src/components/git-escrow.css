@@ -853,9 +853,3 @@ h1 em{font-style:normal;color:var(--neon);font-weight:500}
   color:var(--ink-mute);font-size:10px;letter-spacing:0.15em;text-transform:uppercase;margin-top:2px;
 }
 
-/* modal-foot is reused; if missing, define minimal layout */
-.modal-foot{
-  display:flex;justify-content:space-between;align-items:center;gap:14px;
-  padding:18px 24px;border-top:1px dashed var(--line);
-  font-size:11px;color:var(--ink-dim);letter-spacing:0.1em;
-}
