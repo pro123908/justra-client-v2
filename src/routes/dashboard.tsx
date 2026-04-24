@@ -20,16 +20,36 @@ export const Route = createFileRoute("/dashboard")({
 function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { projects, createProject } = useAppData();
+  const {
+    createProject,
+    projectsOwnedBy,
+    projectsForProvider,
+    invitesForProvider,
+    acceptInvite,
+  } = useAppData();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
 
   useEffect(() => {
     if (!user) navigate({ to: "/auth" });
+    else if (!user.role) navigate({ to: "/role" });
   }, [user, navigate]);
 
-  if (!user) return null;
+  if (!user || !user.role) return null;
+
+  if (user.role === "provider") {
+    return (
+      <ProviderDashboard
+        projects={projectsForProvider(user.address)}
+        invites={invitesForProvider(user.address)}
+        onAccept={(projectId) => acceptInvite(projectId, user.address, user.name)}
+      />
+    );
+  }
+
+  // Consumer
+  const projects = projectsOwnedBy(user.address);
 
   return (
     <div className="git-escrow-root">
@@ -62,35 +82,7 @@ function DashboardPage() {
             </button>
           </div>
         ) : (
-          <div className="proj-grid">
-            {projects.map((p) => (
-              <Link
-                key={p.id}
-                to="/projects/$projectId"
-                params={{ projectId: p.id }}
-                className="proj-card"
-              >
-                <div className="pc-head">
-                  <div>
-                    <div className="pc-id">{p.id}</div>
-                    <div className="pc-title">{p.name}</div>
-                  </div>
-                </div>
-                {p.fileNames.length > 0 && (
-                  <div className="pc-files">
-                    {p.fileNames.slice(0, 3).map((n, i) => (
-                      <span key={i}>{n}</span>
-                    ))}
-                    {p.fileNames.length > 3 && <span>+{p.fileNames.length - 3}</span>}
-                  </div>
-                )}
-                <div className="pc-meta">
-                  <span>{p.milestones.length} milestone{p.milestones.length === 1 ? "" : "s"} · {p.fileCount} file{p.fileCount === 1 ? "" : "s"}</span>
-                  <span className="arrow">→</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+          <ProjectGrid projects={projects} />
         )}
       </div>
 
@@ -101,7 +93,9 @@ function DashboardPage() {
           setCreateOpen(false);
           setCreatedProject(p);
         }}
-        createProject={createProject}
+        createProject={(input) =>
+          createProject({ ...input, ownerAddress: user.address })
+        }
       />
 
       <SuccessModal
@@ -140,6 +134,124 @@ function DashboardPage() {
   );
 }
 
+function ProviderDashboard({
+  projects,
+  invites,
+  onAccept,
+}: {
+  projects: Project[];
+  invites: Array<{ project: Project; invite: { address: string; short: string; invitedAt: string } }>;
+  onAccept: (projectId: string) => void;
+}) {
+  const { user } = useAuth();
+  if (!user) return null;
+
+  return (
+    <div className="git-escrow-root">
+      <div className="wrap">
+        <Navbar />
+
+        <div className="section-bar">
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>
+              Workspace · {user.short}
+              <span style={{ color: "var(--neon)", marginLeft: 10 }}>· PROVIDER</span>
+            </div>
+            <h2>Current projects</h2>
+            <div className="sub">
+              {projects.length} active project{projects.length === 1 ? "" : "s"} delivering under escrow.
+            </div>
+          </div>
+        </div>
+
+        {projects.length === 0 ? (
+          <div className="empty-state">
+            <div className="ic">≡</div>
+            <h3>No active projects</h3>
+            <p>Once a consumer adds you and you accept their invite, projects will appear here.</p>
+          </div>
+        ) : (
+          <ProjectGrid projects={projects} />
+        )}
+
+        <div className="section-bar" style={{ marginTop: 56 }}>
+          <div>
+            <h2>Project invites</h2>
+            <div className="sub">
+              {invites.length} pending invitation{invites.length === 1 ? "" : "s"} from consumers.
+            </div>
+          </div>
+        </div>
+
+        {invites.length === 0 ? (
+          <div className="empty-state">
+            <div className="ic">!</div>
+            <h3>No pending invites</h3>
+            <p>You'll be notified here when a consumer invites you to a project.</p>
+          </div>
+        ) : (
+          <div className="invite-grid">
+            {invites.map(({ project }) => (
+              <div key={project.id} className="invite-card">
+                <div>
+                  <div className="pc-id">{project.id}</div>
+                  <div className="pc-title">{project.name}</div>
+                  <div className="invite-meta">
+                    Owner <b>{shorten(project.ownerAddress)}</b> · {project.milestones.length} milestone{project.milestones.length === 1 ? "" : "s"} · {project.fileCount} file{project.fileCount === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <div className="invite-actions">
+                  <button className="btn btn-primary" onClick={() => onAccept(project.id)}>
+                    Accept invite
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function shorten(addr: string) {
+  return addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+}
+
+function ProjectGrid({ projects }: { projects: Project[] }) {
+  return (
+    <div className="proj-grid">
+      {projects.map((p) => (
+        <Link
+          key={p.id}
+          to="/projects/$projectId"
+          params={{ projectId: p.id }}
+          className="proj-card"
+        >
+          <div className="pc-head">
+            <div>
+              <div className="pc-id">{p.id}</div>
+              <div className="pc-title">{p.name}</div>
+            </div>
+          </div>
+          {p.fileNames.length > 0 && (
+            <div className="pc-files">
+              {p.fileNames.slice(0, 3).map((n, i) => (
+                <span key={i}>{n}</span>
+              ))}
+              {p.fileNames.length > 3 && <span>+{p.fileNames.length - 3}</span>}
+            </div>
+          )}
+          <div className="pc-meta">
+            <span>{p.milestones.length} milestone{p.milestones.length === 1 ? "" : "s"} · {p.fileCount} file{p.fileCount === 1 ? "" : "s"}</span>
+            <span className="arrow">→</span>
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function CreateProjectModal({
   open,
   onClose,
@@ -149,7 +261,7 @@ function CreateProjectModal({
   open: boolean;
   onClose: () => void;
   onCreated: (p: Project) => void;
-  createProject: ReturnType<typeof useAppData>["createProject"];
+  createProject: (input: { name: string; fileNames: string[] }) => Project;
 }) {
   const [name, setName] = useState("");
   const [files, setFiles] = useState<File[]>([]);
