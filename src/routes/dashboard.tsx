@@ -38,7 +38,10 @@ function DashboardPage() {
 
         <div className="section-bar">
           <div>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>Workspace · {user.email}</div>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>
+              Workspace · {user.short}
+              {user.role && <span style={{ color: "var(--neon)", marginLeft: 10 }}>· {user.role.toUpperCase()}</span>}
+            </div>
             <h2>Projects</h2>
             <div className="sub">
               {projects.length} {projects.length === 1 ? "project" : "projects"} under escrow management.
