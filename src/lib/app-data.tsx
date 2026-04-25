@@ -2,18 +2,47 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { projectApi, inviteApi, type ProjectResponse, type InviteResponse } from "./api";
 import { useAuth } from "./auth";
 
-export type MilestoneStatus = "pending" | "approved" | "rejected";
+export type MilestoneStatus =
+  | "pending_provider_approval"
+  | "rejected_by_provider"
+  | "awaiting_deposit"
+  | "funded"
+  | "in_progress"
+  | "submitted"
+  | "approved"
+  | "disputed"
+  | "released"
+  | "cancelled"
+  // legacy aliases used by current in-memory flow
+  | "pending"
+  | "rejected";
 
 export type Milestone = {
   id: string;
   title: string;
   description: string;
+  /** ISO date string */
   startDate: string;
+  /** ISO date string */
   endDate: string;
+  /** decimal as string, e.g. "12.500000000" */
   amount: string;
   fileCount: number;
+  /** spec content addressable id (IPFS CID) */
+  specCid?: string;
+  /** on-chain program derived address for the escrow */
+  pda?: string;
+  /** ISO date string — deadline by which consumer must deposit */
+  depositDeadline?: string;
+  /** ISO timestamp at which funding completed */
+  fundedAt?: string;
+  /** provider wallet short address (display only) */
+  providerShort?: string;
   status: MilestoneStatus;
+  rejectionReason?: string;
+  /** legacy field kept for backwards compatibility with existing UI */
   rejectionNote?: string;
+  createdAt?: string;
 };
 
 export type ProviderMember = {
