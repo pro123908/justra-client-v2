@@ -54,12 +54,17 @@ export type ProjectResponse = {
   description: string | null;
   createdAt: string;
   updatedAt: string;
-  ownerId: string;
   owner?: ApiUser;
   members?: ApiUser[];
 };
 
-export type InviteStatus = "pending" | "accepted" | "rejected" | "PENDING" | "ACCEPTED" | "REJECTED";
+export type InviteStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "PENDING"
+  | "ACCEPTED"
+  | "REJECTED";
 
 export type ApiUser = {
   id: string;
@@ -114,6 +119,13 @@ export const inviteApi = {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
     }),
+
+  /** Cancel (delete) a pending invite. Only callable by the project owner (consumer). */
+  cancel: (token: string, inviteId: string) =>
+    apiFetch<void>(`/invite/${inviteId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
 };
 
 export const projectApi = {
@@ -144,5 +156,12 @@ export const projectApi = {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
+    }),
+
+  /** Remove a member from a project. Only callable by the project owner (consumer). */
+  removeMember: (token: string, projectId: string, userId: string) =>
+    apiFetch<void>(`/project/${projectId}/members/${userId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
     }),
 };

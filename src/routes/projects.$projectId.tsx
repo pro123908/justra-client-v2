@@ -40,6 +40,7 @@ function ProjectDetailPage() {
     cancelInvite,
   } = useAppData();
   const project = getProject(projectId);
+  console.log("🚀 ~ ProjectDetailPage ~ project:", project);
   const [addOpen, setAddOpen] = useState(false);
   const [createdMs, setCreatedMs] = useState<Milestone | null>(null);
   const [viewMs, setViewMs] = useState<Milestone | null>(null);
@@ -94,13 +95,13 @@ function ProjectDetailPage() {
     );
   }
 
-  const isOwner = project.ownerId === user.id;
-  const isProvider = user.role === "provider" && project.providers.some((p) => p.id === user.id);
+  const isOwner = project.ownerId === user.id || project.ownerId === user.address;
+  const isMember = project.providers.some((p) => p.id === user.id || p.address === user.address);
   const canManage = user.role === "consumer" && isOwner;
-  const canApprove = user.role === "provider" && isProvider;
+  const canApprove = user.role === "provider" && isMember;
 
   // If neither owner nor provider on this project, block access
-  if (!isOwner && !isProvider) {
+  if (!isOwner && !isMember) {
     return (
       <div className="git-escrow-root">
         <div className="wrap">

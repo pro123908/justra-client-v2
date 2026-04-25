@@ -29,6 +29,7 @@ export type ProviderMember = {
 };
 
 export type ProjectInvite = {
+  id: string;
   /** invited provider wallet (full) */
   address: string;
   /** display short */
@@ -67,22 +68,18 @@ type DataCtx = {
     note?: string,
   ) => void;
   inviteProvider: (projectId: string, address: string, name?: string) => Promise<ProjectInvite>;
-  removeProvider: (projectId: string, address: string) => void;
-  cancelInvite: (projectId: string, address: string) => void;
+  removeProvider: (projectId: string, address: string) => Promise<void>;
+  cancelInvite: (projectId: string, address: string) => Promise<void>;
   acceptInvite: (inviteId: string) => Promise<void>;
   /** projects owned by the consumer */
   projectsOwnedBy: (address: string) => Project[];
   /** projects where the current user is an active provider */
   projectsForProvider: (address: string) => Project[];
   /** pending invites for the current provider */
-  invitesForProvider: (
-    address: string,
-  ) => Array<{ project: Project; invite: ProjectInvite & { id: string } }>;
+  invitesForProvider: (address: string) => Array<{ project: Project; invite: ProjectInvite }>;
 };
 
 const Ctx = createContext<DataCtx | null>(null);
-
-const slug = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 
 const shortenAddr = (addr: string) =>
   addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
@@ -95,7 +92,7 @@ function mapProject(r: ProjectResponse): Project {
     fileCount: 0,
     fileNames: [],
     createdAt: r.createdAt,
-    ownerId: r.ownerId,
+    ownerId: r.owner!.id,
     providers: (r.members ?? []).map((m) => ({
       id: m.id,
       address: m.publicKey,
@@ -120,6 +117,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (user.role === "provider") {
       Promise.all([projectApi.getMembers(token), inviteApi.getMyInvites(token)])
         .then(([members, invites]) => {
+          console.log("🚀 ~ AppDataProvider ~ members:", members);
           setMemberProjects(members.map((r) => mapProject(r)));
           setMyInvites(invites);
         })
@@ -169,42 +167,30 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return p;
   };
 
-  const addMilestone: DataCtx["addMilestone"] = (projectId, m) => {
-    const ms: Milestone = { ...m, id: "M-" + slug(), status: "pending" };
-    setProjects((curr) =>
-      curr.map((p) => (p.id === projectId ? { ...p, milestones: [...p.milestones, ms] } : p)),
-    );
-    return ms;
+  // TODO: needs API — POST /project/:id/milestone
+  const addMilestone: DataCtx["addMilestone"] = (_projectId, _m) => {
+    throw new Error("addMilestone: API not implemented. Please create POST /project/:id/milestone");
   };
 
+  // TODO: needs API — PATCH /project/:id/milestone/:milestoneId
   const setMilestoneStatus: DataCtx["setMilestoneStatus"] = (
-    projectId,
-    milestoneId,
-    status,
-    note,
+    _projectId,
+    _milestoneId,
+    _status,
+    _note,
   ) => {
-    setProjects((curr) =>
-      curr.map((p) =>
-        p.id !== projectId
-          ? p
-          : {
-              ...p,
-              milestones: p.milestones.map((m) =>
-                m.id === milestoneId
-                  ? { ...m, status, rejectionNote: status === "rejected" ? note : undefined }
-                  : m,
-              ),
-            },
-      ),
+    throw new Error(
+      "setMilestoneStatus: API not implemented. Please create PATCH /project/:id/milestone/:milestoneId",
     );
   };
 
   const inviteProvider: DataCtx["inviteProvider"] = async (projectId, address, _name) => {
-    await inviteApi.send(token!, { projectId, publicKeys: [address] });
+    const [sent] = await inviteApi.send(token!, { projectId, publicKeys: [address] });
     const invite: ProjectInvite = {
+      id: sent.id,
       address,
       short: shortenAddr(address),
-      invitedAt: new Date().toISOString(),
+      invitedAt: sent.createdAt,
     };
     setProjects((curr) =>
       curr.map((p) => {
@@ -217,7 +203,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return invite;
   };
 
-  const removeProvider: DataCtx["removeProvider"] = (projectId, address) => {
+  const removeProvider: DataCtx["removeProvider"] = async (projectId, address) => {
+    const project = projects.find((p) => p.id === projectId);
+    const member = project?.providers.find((pr) => pr.address === address);
+    if (!member) return;
+    await projectApi.removeMember(token!, projectId, member.id);
     setProjects((curr) =>
       curr.map((p) =>
         p.id === projectId
@@ -227,7 +217,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const cancelInvite: DataCtx["cancelInvite"] = (projectId, address) => {
+  const cancelInvite: DataCtx["cancelInvite"] = async (projectId, address) => {
+    const project = projects.find((p) => p.id === projectId);
+    const invite = project?.invites.find((iv) => iv.address === address);
+    if (!invite) return;
+    await inviteApi.cancel(token!, invite.id);
     setProjects((curr) =>
       curr.map((p) =>
         p.id === projectId
@@ -249,23 +243,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const projectsOwnedBy: DataCtx["projectsOwnedBy"] = (id) =>
-    projects.filter((p) => p.ownerId === id);
+  // GET /project already returns only projects owned by the authenticated consumer
+  const projectsOwnedBy: DataCtx["projectsOwnedBy"] = (_id) => projects;
 
   const projectsForProvider: DataCtx["projectsForProvider"] = (_address) => memberProjects;
 
+  // GET /invite/me already returns only pending invites for the authenticated provider
   const invitesForProvider: DataCtx["invitesForProvider"] = (_address) =>
-    myInvites
-      .filter((inv) => inv.status.toLowerCase() === "pending")
-      .map((inv) => ({
-        project: mapProject(inv.project, inv.invitedBy.publicKey),
-        invite: {
-          id: inv.id,
-          address: inv.for.publicKey,
-          short: shortenAddr(inv.for.publicKey),
-          invitedAt: inv.createdAt,
-        },
-      }));
+    myInvites.map((inv) => ({
+      project: mapProject(inv.project),
+      invite: {
+        id: inv.id,
+        address: inv.for.publicKey,
+        short: shortenAddr(inv.for.publicKey),
+        invitedAt: inv.createdAt,
+      },
+    }));
 
   return (
     <Ctx.Provider
