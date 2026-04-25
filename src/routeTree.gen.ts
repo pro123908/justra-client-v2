@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as ProjectsProjectIdMilestonesMilestoneIdRouteImport } from './routes/projects.$projectId_.milestones.$milestoneId'
 
 const RoleRoute = RoleRouteImport.update({
   id: '/role',
@@ -40,6 +41,12 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsProjectIdMilestonesMilestoneIdRoute =
+  ProjectsProjectIdMilestonesMilestoneIdRouteImport.update({
+    id: '/projects/$projectId_/milestones/$milestoneId',
+    path: '/projects/$projectId/milestones/$milestoneId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +54,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/role': typeof RoleRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/projects/$projectId/milestones/$milestoneId': typeof ProjectsProjectIdMilestonesMilestoneIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +62,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/role': typeof RoleRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/projects/$projectId/milestones/$milestoneId': typeof ProjectsProjectIdMilestonesMilestoneIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,12 +71,25 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/role': typeof RoleRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
+  '/projects/$projectId_/milestones/$milestoneId': typeof ProjectsProjectIdMilestonesMilestoneIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/role' | '/projects/$projectId'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/role'
+    | '/projects/$projectId'
+    | '/projects/$projectId/milestones/$milestoneId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/role' | '/projects/$projectId'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/role'
+    | '/projects/$projectId'
+    | '/projects/$projectId/milestones/$milestoneId'
   id:
     | '__root__'
     | '/'
@@ -75,6 +97,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/role'
     | '/projects/$projectId'
+    | '/projects/$projectId_/milestones/$milestoneId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -83,6 +106,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   RoleRoute: typeof RoleRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
+  ProjectsProjectIdMilestonesMilestoneIdRoute: typeof ProjectsProjectIdMilestonesMilestoneIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -122,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId_/milestones/$milestoneId': {
+      id: '/projects/$projectId_/milestones/$milestoneId'
+      path: '/projects/$projectId/milestones/$milestoneId'
+      fullPath: '/projects/$projectId/milestones/$milestoneId'
+      preLoaderRoute: typeof ProjectsProjectIdMilestonesMilestoneIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -131,6 +162,8 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   RoleRoute: RoleRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
+  ProjectsProjectIdMilestonesMilestoneIdRoute:
+    ProjectsProjectIdMilestonesMilestoneIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

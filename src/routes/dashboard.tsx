@@ -199,9 +199,7 @@ function ProviderDashboard({
                   <div className="pc-id">{project.id}</div>
                   <div className="pc-title">{project.name}</div>
                   <div className="invite-meta">
-                    Owner <b>{project.ownerId}</b> · {project.milestones.length} milestone
-                    {project.milestones.length === 1 ? "" : "s"} · {project.fileCount} file
-                    {project.fileCount === 1 ? "" : "s"}
+                    Owner <b>{project.ownerId}</b>
                   </div>
                 </div>
                 <div className="invite-actions">
@@ -234,19 +232,8 @@ function ProjectGrid({ projects }: { projects: Project[] }) {
               <div className="pc-title">{p.name}</div>
             </div>
           </div>
-          {p.fileNames.length > 0 && (
-            <div className="pc-files">
-              {p.fileNames.slice(0, 3).map((n, i) => (
-                <span key={i}>{n}</span>
-              ))}
-              {p.fileNames.length > 3 && <span>+{p.fileNames.length - 3}</span>}
-            </div>
-          )}
           <div className="pc-meta">
-            <span>
-              {p.milestones.length} milestone{p.milestones.length === 1 ? "" : "s"} · {p.fileCount}{" "}
-              file{p.fileCount === 1 ? "" : "s"}
-            </span>
+            <span>Open project</span>
             <span className="arrow">→</span>
           </div>
         </Link>

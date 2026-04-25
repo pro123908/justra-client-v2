@@ -1,9 +1,12 @@
 const BASE_URL = "http://localhost:3000";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: isFormData
+      ? { ...init?.headers }
+      : { "Content-Type": "application/json", ...init?.headers },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -128,6 +131,35 @@ export const inviteApi = {
     }),
 };
 
+export enum MilestoneStatus {
+  PENDING_PROVIDER_APPROVAL = "pending_provider_approval",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  PENDING_DEPOSIT = "pending_deposit",
+  FUNDED = "funded",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+}
+
+export type MilestoneResponse = {
+  id: string;
+  project: ProjectResponse;
+  provider: ApiUser;
+  title: string;
+  description: string;
+  amount: string;
+  specCid: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: MilestoneStatus;
+  rejectionReason: string | null;
+  pda: string | null;
+  depositDeadline: string | null;
+  fundedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const projectApi = {
   list: (token: string) =>
     apiFetch<ProjectResponse[]>("/project", {
@@ -162,6 +194,67 @@ export const projectApi = {
   removeMember: (token: string, projectId: string, userId: string) =>
     apiFetch<void>(`/project/${projectId}/members/${userId}`, {
       method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
+export type CreateMilestoneInput = {
+  providerId: string;
+  title: string;
+  description: string;
+  amount: string;
+  startDate?: string;
+  endDate?: string;
+  files?: File[];
+};
+
+export const milestoneApi = {
+  create: (token: string, projectId: string, input: CreateMilestoneInput) => {
+    const form = new FormData();
+    form.append("providerId", input.providerId);
+    form.append("title", input.title);
+    form.append("description", input.description);
+    form.append("amount", input.amount);
+    if (input.startDate) form.append("startDate", input.startDate);
+    if (input.endDate) form.append("endDate", input.endDate);
+    (input.files ?? []).forEach((f) => form.append("files", f));
+    return apiFetch<MilestoneResponse>(`/milestone/project/${projectId}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+  },
+
+  listForProject: (token: string, projectId: string) =>
+    apiFetch<MilestoneResponse[]>(`/milestone/project/${projectId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  listForProvider: (token: string) =>
+    apiFetch<MilestoneResponse[]>("/milestone/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  get: (token: string, id: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  accept: (token: string, id: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/accept`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  reject: (token: string, id: string, rejectionReason?: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/reject`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ rejectionReason }),
+    }),
+
+  getPinataGatewayUrl: (token: string) =>
+    apiFetch<{ url: string }>("/milestone/pinata-gateway-url", {
       headers: { Authorization: `Bearer ${token}` },
     }),
 };
