@@ -812,6 +812,94 @@ h1 em{font-style:normal;color:var(--neon);font-weight:500}
   padding:14px 16px;color:var(--ink);font-size:13px;line-height:1.7;white-space:pre-wrap;
 }
 
+/* normalized status groups (mirrors statusGroup() in code) */
+.ms-status.active{color:var(--neon-2)}
+.ms-status.settled{color:var(--neon)}
+.ms-status.lg{padding:6px 14px;font-size:11px;letter-spacing:0.25em}
+.ms-status.active .d{animation:pulse 2s infinite}
+
+/* milestone row state accents */
+.milestone.ms-row-approved{border-left:2px solid var(--neon)}
+.milestone.ms-row-pending{border-left:2px solid var(--amber)}
+.milestone.ms-row-rejected{border-left:2px solid var(--red)}
+.milestone.ms-row-active{border-left:2px solid var(--neon-2)}
+
+/* tags row inside milestone list */
+.ms-row-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+.ms-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);background:rgba(0,0,0,0.35);
+  padding:3px 9px;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;
+  color:var(--ink-dim);
+}
+.ms-chip .k{color:var(--ink-mute)}
+.ms-chip .v{color:var(--ink);font-family:var(--mono)}
+.ms-chip.warn{border-color:var(--amber);color:var(--amber)}
+.ms-chip.warn .k{color:var(--amber)}
+.ms-chip.warn .v{color:var(--amber)}
+.ms-chip.ok{border-color:var(--neon-2);color:var(--neon)}
+.ms-chip.ok .k{color:var(--neon-2)}
+.ms-chip.ok .v{color:var(--neon)}
+
+/* milestone detail — hero band */
+.ms-hero{
+  display:flex;justify-content:space-between;align-items:center;gap:24px;
+  border:1px solid var(--line-2);
+  background:linear-gradient(180deg,rgba(0,255,136,0.06),rgba(7,16,13,0.85));
+  padding:18px 20px;margin-bottom:18px;
+}
+.ms-hero-amount{display:flex;flex-direction:column;gap:4px}
+.ms-hero-amount .lbl{
+  color:var(--ink-mute);font-size:10px;letter-spacing:0.25em;text-transform:uppercase;
+}
+.ms-hero-amount .val{
+  font-family:var(--display);font-weight:600;font-size:32px;color:var(--neon);
+  letter-spacing:-0.02em;line-height:1;
+}
+.ms-hero-amount .sub{
+  color:var(--ink-dim);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;
+}
+.ms-hero-status{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.ms-hero-provider{
+  color:var(--ink-dim);font-size:11px;letter-spacing:0.15em;text-transform:uppercase;
+}
+.ms-hero-provider b{color:var(--ink);margin-left:6px}
+
+/* detail grid — 2 column variant + cell padding */
+.ms-detail-grid.two{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.ms-cell{display:flex;flex-direction:column;gap:6px}
+.ms-cell.mono-cell .ms-mono{
+  font-family:var(--mono);font-size:12px;color:var(--ink);
+  background:rgba(0,0,0,0.45);border:1px dashed var(--line);
+  padding:8px 10px;letter-spacing:0.05em;word-break:break-all;
+}
+
+/* approve / reject confirm modal */
+.confirm-block{padding:6px 4px}
+.confirm-ic{
+  width:48px;height:48px;display:grid;place-items:center;
+  border:1px solid currentColor;font-family:var(--display);font-size:24px;font-weight:600;
+  margin-bottom:14px;
+}
+.confirm-ic.ok{color:var(--neon);box-shadow:0 0 24px rgba(0,255,136,0.2)}
+.confirm-ic.bad{color:var(--red);box-shadow:0 0 24px rgba(255,59,59,0.2)}
+.confirm-h{
+  font-family:var(--display);font-weight:500;font-size:22px;color:#eaffef;
+  letter-spacing:-0.01em;margin:0 0 8px;
+}
+.confirm-p{
+  color:var(--ink-dim);font-size:13px;line-height:1.7;margin:0 0 4px;
+}
+.confirm-meta{
+  margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  border:1px solid var(--line);background:rgba(0,0,0,0.3);padding:12px 14px;
+}
+.confirm-meta>div{display:flex;flex-direction:column;gap:4px}
+.confirm-meta span{
+  color:var(--ink-mute);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;
+}
+.confirm-meta b{color:var(--ink);font-family:var(--mono);font-size:13px}
+
 /* invite cards (provider dashboard) */
 .invite-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px;margin-top:24px;
