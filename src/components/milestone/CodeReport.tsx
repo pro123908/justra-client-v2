@@ -535,21 +535,31 @@ function AnalysisReport({ data }: { data: AnalysisResponse }) {
   );
 }
 
+/* ---------------- terminal line ---------------- */
+function TerminalLine({ children, delay }: { children: React.ReactNode; delay: number }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <div className={"term-line" + (visible ? " show" : "")}>
+      <span className="term-prompt">▸</span>
+      <span className="term-text">{children}</span>
+    </div>
+  );
+}
+
 /* ---------------- main exported component ---------------- */
 export default function CodeReport() {
   const [codebase, setCodebase] = useState<File | null>(null);
   const [codebaseAnimKey, setCodebaseAnimKey] = useState(0);
   const [codebaseAnimating, setCodebaseAnimating] = useState(false);
-
-  const [requirements, setRequirements] = useState<File | null>(null);
-  const [reqAnimKey, setReqAnimKey] = useState(0);
-  const [reqAnimating, setReqAnimating] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [modal1, setModal1] = useState(false);
   const [stagedCodebase, setStagedCodebase] = useState<File | null>(null);
-
-  const [modal2, setModal2] = useState(false);
-  const [stagedReq, setStagedReq] = useState<File | null>(null);
 
   const [loadingOpen, setLoadingOpen] = useState(false);
   const [loadTitle, setLoadTitle] = useState("Analyzing codebase");
@@ -560,29 +570,22 @@ export default function CodeReport() {
   const [error, setError] = useState<string | null>(null);
 
   const codebaseOk = !!codebase;
-  const requirementsOk = !!requirements;
-  const generateEnabled = codebaseOk && requirementsOk;
+
+  const attachFile = (file: File) => {
+    setCodebase(file);
+    setCodebaseAnimating(true);
+    setCodebaseAnimKey((k) => k + 1);
+  };
 
   const confirmCodebase = () => {
     if (!stagedCodebase) return;
-    setCodebase(stagedCodebase);
-    setCodebaseAnimating(true);
-    setCodebaseAnimKey((k) => k + 1);
+    attachFile(stagedCodebase);
     setModal1(false);
     setStagedCodebase(null);
   };
 
-  const confirmReq = () => {
-    if (!stagedReq) return;
-    setRequirements(stagedReq);
-    setReqAnimating(true);
-    setReqAnimKey((k) => k + 1);
-    setModal2(false);
-    setStagedReq(null);
-  };
-
   const runAnalysis = async () => {
-    if (!codebase || !requirements) return;
+    if (!codebase) return;
 
     setAnalysis(null);
     setError(null);
@@ -601,7 +604,6 @@ export default function CodeReport() {
 
     try {
       const form = new FormData();
-      form.append("requirements", requirements);
       form.append("codebase", codebase);
 
       const res = await fetch("http://localhost:3000/analyze", {
@@ -631,141 +633,205 @@ export default function CodeReport() {
 
   return (
     <>
-      <div className="zones">
-        <section className={"zone" + (codebaseOk ? " filled" : "")} id="zone1">
-          <div className="zone-head">
-            <div>
-              <div className="zone-label">Input · 01</div>
-              <div className="zone-title">Codebase Archive</div>
-              <p className="zone-desc">
-                A .zip of the project source code to be evaluated against the requirements.
-              </p>
-            </div>
-            <div className="zone-badge">.ZIP</div>
-          </div>
-          <button className="drop-btn" onClick={() => setModal1(true)}>
-            <span className="plus">+</span>
-            <span className="txt">
-              <div>Upload codebase archive</div>
-              <div className="hint">One .zip file · max 50 MB</div>
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--display)",
-                fontWeight: 600,
-                color: "var(--ink-mute)",
-              }}
-            >
-              →
-            </span>
-          </button>
-          <div className="file-manifest">
-            {codebase && (
-              <FileRow
-                key={codebaseAnimKey}
-                file={codebase}
-                uploading={codebaseAnimating}
-                onRemove={() => {
-                  setCodebase(null);
-                  setCodebaseAnimating(false);
-                }}
-              />
-            )}
-          </div>
-          <div className="zone-accepts">
-            <b>Accepts</b> &nbsp;·&nbsp; .zip archive of project source code
-          </div>
-        </section>
+      {/* ── Pipeline steps ── */}
+      <div className="deliver-pipeline">
+        <div className="pip-step active">
+          <div className="pip-num">01</div>
+          <div className="pip-label">Upload Archive</div>
+        </div>
+        <div className="pip-connector">
+          <div className="pip-connector-fill" style={{ width: codebaseOk ? "100%" : "0%" }} />
+        </div>
+        <div className={"pip-step" + (codebaseOk ? " active" : "")}>
+          <div className="pip-num">02</div>
+          <div className="pip-label">AI Analysis</div>
+        </div>
+        <div className="pip-connector">
+          <div className="pip-connector-fill" style={{ width: "0%" }} />
+        </div>
+        <div className="pip-step">
+          <div className="pip-num">03</div>
+          <div className="pip-label">Release Escrow</div>
+        </div>
+      </div>
 
-        <section className={"zone" + (requirementsOk ? " filled" : "")} id="zone2">
-          <div className="zone-head">
-            <div>
-              <div className="zone-label">Input · 02</div>
-              <div className="zone-title">Requirements Document</div>
-              <p className="zone-desc">
-                The specification or acceptance criteria document that defines what the codebase
-                must implement.
-              </p>
-            </div>
-            <div className="zone-badge">DOC</div>
-          </div>
-          <button className="drop-btn" onClick={() => setModal2(true)}>
-            <span className="plus">+</span>
-            <span className="txt">
-              <div>Upload requirements document</div>
-              <div className="hint">One file · .txt · .pdf · .docx</div>
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--display)",
-                fontWeight: 600,
-                color: "var(--ink-mute)",
-              }}
-            >
-              →
-            </span>
-          </button>
-          <div className="file-manifest">
-            {requirements && (
-              <FileRow
-                key={reqAnimKey}
-                file={requirements}
-                uploading={reqAnimating}
-                onRemove={() => {
-                  setRequirements(null);
-                  setReqAnimating(false);
-                }}
-              />
+      {/* ── Main delivery zone ── */}
+      <div className="deliver-zone">
+        {/* Left: upload */}
+        <div className="deliver-left">
+          <div
+            className={
+              "upload-target" + (codebaseOk ? " filled" : "") + (dragOver ? " drag-over" : "")
+            }
+            onClick={() => !codebaseOk && setModal1(true)}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              if (!codebaseOk) setDragOver(true);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!codebaseOk) setDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) attachFile(f);
+            }}
+          >
+            <div className="ut-pulse-ring r1" />
+            <div className="ut-pulse-ring r2" />
+            <div className="ut-pulse-ring r3" />
+            <div className="ut-scan" />
+            {codebaseOk ? (
+              <div className="ut-filled-content">
+                <div className="ut-ok-icon">✓</div>
+                <div className="ut-filled-name">{codebase!.name}</div>
+                <div className="ut-filled-meta">
+                  {fmtBytes(codebase!.size)} · ready for analysis
+                </div>
+                <button
+                  className="ut-replace-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setModal1(true);
+                  }}
+                >
+                  Replace file
+                </button>
+              </div>
+            ) : (
+              <div className="ut-idle-content">
+                <div className="ut-icon">⇪</div>
+                <div className="ut-title">Drop .zip Archive</div>
+                <div className="ut-hint">
+                  or <span className="ut-browse">click to browse</span> · max 50 MB
+                </div>
+              </div>
             )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) attachFile(f);
+                e.target.value = "";
+              }}
+            />
           </div>
-          <div className="zone-accepts">
-            <b>Accepts</b> &nbsp;·&nbsp; .txt &nbsp;·&nbsp; .pdf &nbsp;·&nbsp; .docx
+
+          <div className="ut-meta-row">
+            <span className="ut-meta-chip">
+              <b>Format</b> .zip
+            </span>
+            <span className="ut-meta-chip">
+              <b>Max</b> 50 MB
+            </span>
+            <span className={"ut-meta-chip status" + (codebaseOk ? " ok" : "")}>
+              <span className="ut-dot" />
+              {codebaseOk ? "Archive ready" : "Awaiting upload"}
+            </span>
           </div>
-        </section>
+        </div>
+
+        {/* Right: engine info */}
+        <div className="deliver-right">
+          <div className="dr-head">
+            <span className="dr-label">▸ ANALYSIS ENGINE</span>
+            <span className="dr-status">
+              <span className="dot" />
+              READY
+            </span>
+          </div>
+
+          <div className="terminal-feed">
+            <TerminalLine delay={80}>vector index initialised · 1536-dim</TerminalLine>
+            <TerminalLine delay={280}>semantic chunker · active</TerminalLine>
+            <TerminalLine delay={480}>requirement parser · loaded</TerminalLine>
+            <TerminalLine delay={680}>escrow verifier · on-chain link</TerminalLine>
+            <TerminalLine delay={880}>llm grader · claude-sonnet-4-6</TerminalLine>
+            <TerminalLine delay={1080}>
+              awaiting archive upload_
+              <span className="term-cursor" />
+            </TerminalLine>
+          </div>
+
+          <div className="engine-features">
+            {[
+              {
+                icon: "◈",
+                title: "Semantic Code Search",
+                desc: "RAG over your entire codebase — no file left unread",
+              },
+              {
+                icon: "⟁",
+                title: "Requirement Mapping",
+                desc: "Each spec line matched to specific evidence in code",
+              },
+              {
+                icon: "◎",
+                title: "Confidence Scoring",
+                desc: "Per-requirement confidence with pass / partial / fail",
+              },
+              {
+                icon: "⬡",
+                title: "On-chain Verdict",
+                desc: "Score cryptographically linked to the escrow PDA",
+              },
+            ].map((f, i) => (
+              <div className="ef-item" key={f.title} style={{ animationDelay: `${i * 120}ms` }}>
+                <span className="ef-icon">{f.icon}</span>
+                <div>
+                  <div className="ef-title">{f.title}</div>
+                  <div className="ef-desc">{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Feature strip ── */}
+      <div className="feature-strip">
+        {[
+          { stat: "RAG", label: "Retrieval-augmented grading" },
+          { stat: "LLM", label: "Claude-powered analysis" },
+          { stat: "ZK", label: "Verifiable on-chain result" },
+          { stat: "< 2m", label: "Typical analysis time" },
+        ].map((c, i) => (
+          <div className="fs-card" key={c.stat} style={{ animationDelay: `${i * 80}ms` }}>
+            <div className="fs-stat">{c.stat}</div>
+            <div className="fs-label">{c.label}</div>
+          </div>
+        ))}
       </div>
 
       {error && (
-        <div
-          style={{
-            margin: "16px 0",
-            padding: "14px 18px",
-            borderRadius: 6,
-            background: "#ef444411",
-            border: "1px solid #ef444433",
-            color: "#ef4444",
-            fontSize: 13,
-            fontFamily: "var(--display)",
-          }}
-        >
+        <div className="deliver-error">
           <b>Error:</b> {error}
         </div>
       )}
 
+      {/* ── CTA ── */}
       <div className="cta-row">
         <div className="cta-meta">
           <div className={"item " + (codebaseOk ? "ok" : "no")}>
-            <span className="chk" /> CODEBASE
-          </div>
-          <div className={"item " + (requirementsOk ? "ok" : "no")}>
-            <span className="chk" /> REQUIREMENTS
+            <span className="chk">{codebaseOk ? "✓" : ""}</span> ARCHIVE
           </div>
           <div className="item ok">
-            <span className="chk" /> ESCROW LOCKED
+            <span className="chk">✓</span> ESCROW LOCKED
           </div>
         </div>
-        <button className="btn-generate" disabled={!generateEnabled} onClick={runAnalysis}>
+        <button className="btn-generate" disabled={!codebaseOk} onClick={runAnalysis}>
           Generate Report<span className="ar">→</span>
         </button>
-        <div
-          style={{
-            color: "var(--ink-mute)",
-            fontSize: 10,
-            letterSpacing: "0.25em",
-            textTransform: "uppercase",
-          }}
-        >
-          LLM-powered requirement analysis · 30–120 seconds
-        </div>
+        <div className="cta-hint">LLM-powered · semantic analysis · 30–120 seconds</div>
       </div>
 
       {analysis && <AnalysisReport data={analysis} />}
@@ -811,48 +877,13 @@ export default function CodeReport() {
         />
         <div className="modal-filelist">
           {stagedCodebase && (
-            <FileRow file={stagedCodebase} onRemove={() => setStagedCodebase(null)} />
+            <FileRow
+              key={codebaseAnimKey}
+              file={stagedCodebase}
+              uploading={codebaseAnimating}
+              onRemove={() => setStagedCodebase(null)}
+            />
           )}
-        </div>
-      </Modal>
-
-      <Modal
-        open={modal2}
-        onClose={() => {
-          setModal2(false);
-          setStagedReq(null);
-        }}
-        tag="INPUT 02"
-        title="Requirements Document"
-        footer={
-          <div className="modal-foot">
-            <div>{stagedReq ? "1 document ready" : "No file selected"}</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="btn"
-                onClick={() => {
-                  setModal2(false);
-                  setStagedReq(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button className="btn btn-primary" disabled={!stagedReq} onClick={confirmReq}>
-                Attach Document
-              </button>
-            </div>
-          </div>
-        }
-      >
-        <DropArea
-          icon="≡"
-          title="Drop requirements document here"
-          hint="accepts .txt · .pdf · .docx"
-          accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onFiles={(files) => setStagedReq(files[0])}
-        />
-        <div className="modal-filelist">
-          {stagedReq && <FileRow file={stagedReq} onRemove={() => setStagedReq(null)} />}
         </div>
       </Modal>
 

@@ -206,6 +206,15 @@ export type CreateMilestoneInput = {
   files?: File[];
 };
 
+export type MilestoneFileResponse = {
+  id: string;
+  fileName: string;
+  text: string;
+  specCid: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const milestoneApi = {
   create: (token: string, projectId: string, input: CreateMilestoneInput) => {
     const form = new FormData();
@@ -251,8 +260,19 @@ export const milestoneApi = {
       body: JSON.stringify({ rejectionReason }),
     }),
 
+  fund: (token: string, id: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/fund`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
   getPinataGatewayUrl: (token: string) =>
     apiFetch<{ url: string }>("/milestone/pinata-gateway-url", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  getFiles: (token: string, milestoneId: string) =>
+    apiFetch<MilestoneFileResponse[]>(`/milestone/${milestoneId}/files`, {
       headers: { Authorization: `Bearer ${token}` },
     }),
 };

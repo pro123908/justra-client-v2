@@ -2,7 +2,12 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
-import { milestoneApi, MilestoneStatus, type MilestoneResponse } from "@/lib/api";
+import {
+  milestoneApi,
+  MilestoneStatus,
+  type MilestoneResponse,
+  type MilestoneFileResponse,
+} from "@/lib/api";
 import CodeReport from "@/components/milestone/CodeReport";
 import "@/components/git-escrow.css";
 
@@ -99,6 +104,13 @@ function MilestoneDetailPage() {
   const [specsLoading, setSpecsLoading] = useState(false);
   const [specsError, setSpecsError] = useState("");
 
+  // milestone files
+  const [files, setFiles] = useState<MilestoneFileResponse[]>([]);
+  const [fileViewOpen, setFileViewOpen] = useState(false);
+  const [fileViewContent, setFileViewContent] = useState<string | null>(null);
+  const [fileViewName, setFileViewName] = useState("");
+  const [fileViewError, setFileViewError] = useState("");
+
   // deposit flow (consumer only, when status === PENDING_DEPOSIT)
   const [depositStep, setDepositStep] = useState<
     "idle" | "method" | "review" | "signing" | "broadcasting" | "success" | "error"
@@ -121,6 +133,14 @@ function MilestoneDetailPage() {
       .then(setMilestone)
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
+  }, [token, milestoneId]);
+
+  useEffect(() => {
+    if (!token) return;
+    milestoneApi
+      .getFiles(token, milestoneId)
+      .then(setFiles)
+      .catch(() => {});
   }, [token, milestoneId]);
 
   if (!user || !user.role) return null;
@@ -205,17 +225,13 @@ function MilestoneDetailPage() {
       const { signature } = await phantom.signMessage(encoded, "utf8");
 
       setDepositStep("broadcasting");
-      await new Promise((r) => setTimeout(r, 1400));
 
       let hex = "";
       for (const b of signature.slice(0, 32)) hex += b.toString(16).padStart(2, "0");
       setDepositTxSig(hex);
 
-      setMilestone({
-        ...milestone,
-        status: MilestoneStatus.ACTIVE,
-        fundedAt: new Date().toISOString(),
-      });
+      const updated = await milestoneApi.fund(token!, milestoneId);
+      setMilestone(updated);
       setDepositStep("success");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Deposit failed.";
@@ -240,16 +256,12 @@ function MilestoneDetailPage() {
     setDepositError("");
     setDepositStep("broadcasting");
     try {
-      // Simulated processor latency.
-      await new Promise((r) => setTimeout(r, 1600));
       const ref =
         "ch_" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
       setDepositTxSig(ref);
-      setMilestone({
-        ...milestone,
-        status: MilestoneStatus.ACTIVE,
-        fundedAt: new Date().toISOString(),
-      });
+
+      const updated = await milestoneApi.fund(token!, milestoneId);
+      setMilestone(updated);
       setDepositStep("success");
     } catch (e) {
       setDepositError(e instanceof Error ? e.message : "Payment failed.");
@@ -304,6 +316,13 @@ function MilestoneDetailPage() {
     } finally {
       setSpecsLoading(false);
     }
+  };
+
+  const handleViewFile = (file: MilestoneFileResponse) => {
+    setFileViewName(file.fileName);
+    setFileViewContent(file.text);
+    setFileViewError("");
+    setFileViewOpen(true);
   };
 
   const handleReject = async () => {
@@ -622,7 +641,126 @@ function MilestoneDetailPage() {
             </div>
           </div>
         )}
+
+        {files.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <div className="section-h" style={{ marginBottom: 14 }}>
+              <span>▸ MILESTONE FILES</span>
+              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
+                {files.length} file{files.length !== 1 ? "s" : ""} · stored on IPFS
+              </span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {files.map((f) => (
+                <div
+                  key={f.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    border: "1px solid var(--line)",
+                    borderRadius: 6,
+                    padding: "12px 16px",
+                    background: "var(--panel)",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-mono, monospace)",
+                        fontSize: 13,
+                        color: "var(--ink)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {f.fileName}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--ink-mute)",
+                        fontFamily: "var(--display)",
+                      }}
+                    >
+                      CID {truncMiddle(f.specCid, 8, 6)} · {fmtDate(f.createdAt)}
+                    </div>
+                  </div>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 12, flexShrink: 0 }}
+                    onClick={() => handleViewFile(f)}
+                  >
+                    View
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {fileViewOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setFileViewOpen(false)}
+        >
+          <div
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: 8,
+              padding: 24,
+              maxWidth: 700,
+              width: "90%",
+              maxHeight: "80vh",
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="form-label" style={{ fontSize: 13 }}>
+                ▸ {fileViewName}
+              </div>
+              <button
+                className="btn"
+                style={{ fontSize: 12 }}
+                onClick={() => setFileViewOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            {fileViewError && <div className="auth-error">{fileViewError}</div>}
+            {fileViewContent !== null && (
+              <pre
+                style={{
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  fontFamily: "var(--font-mono, monospace)",
+                  fontSize: 13,
+                  color: "var(--fg)",
+                  margin: 0,
+                }}
+              >
+                {fileViewContent}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
 
       {specsOpen && (
         <div
