@@ -410,6 +410,15 @@ function MilestoneDetailPage() {
             </div>
           )}
 
+          {/* Active milestone band — countdown to endDate */}
+          {isActive && (
+            <ActiveMilestoneBand
+              endDate={milestone.endDate}
+              amount={milestone.amount}
+              fundedAt={milestone.fundedAt}
+            />
+          )}
+
           <div className="ms-hero">
             <div className="ms-hero-amount">
               <span className="lbl">Escrow value</span>
