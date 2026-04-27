@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
 import { milestoneApi, MilestoneStatus, type MilestoneResponse } from "@/lib/api";
+import CodeReport from "@/components/milestone/CodeReport";
 import "@/components/git-escrow.css";
 
 export const Route = createFileRoute("/projects/$projectId_/milestones/$milestoneId")({
@@ -166,6 +167,7 @@ function MilestoneDetailPage() {
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
   const isConsumer = user.role === "consumer";
   const needsDeposit = isConsumer && milestone.status === MilestoneStatus.WAITING_FOR_DEPOSIT;
+  const isActive = milestone.status === MilestoneStatus.ACTIVE;
   console.log(
     "🚀 ~ MilestoneDetailPage ~ needsDeposit:",
     needsDeposit,
