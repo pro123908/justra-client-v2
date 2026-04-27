@@ -489,10 +489,10 @@ function MilestoneDetailPage() {
               </div>
               <div className="deposit-actions">
                 <button className="btn btn-primary" onClick={handleStartDeposit}>
-                  Deposit ◎ {milestone.amount} SOL
+                  Fund milestone — ◎ {milestone.amount} SOL / ${fiatTotal}
                 </button>
                 <span className="deposit-hint">
-                  You'll review and sign the transaction in Phantom.
+                  Choose to pay with crypto (SOL) or fiat (card).
                 </span>
               </div>
             </div>
@@ -665,21 +665,23 @@ function MilestoneDetailPage() {
               <span
                 className={
                   "step " +
-                  (["review", "signing", "broadcasting", "success"].includes(depositStep)
+                  (["method", "review", "signing", "broadcasting", "success"].includes(depositStep)
                     ? "active"
                     : "")
                 }
               >
-                1 · Review
+                1 · Method
               </span>
               <span className="sep">—</span>
               <span
                 className={
                   "step " +
-                  (["signing", "broadcasting", "success"].includes(depositStep) ? "active" : "")
+                  (["review", "signing", "broadcasting", "success"].includes(depositStep)
+                    ? "active"
+                    : "")
                 }
               >
-                2 · Sign
+                2 · {depositMethod === "fiat" ? "Card details" : "Sign"}
               </span>
               <span className="sep">—</span>
               <span className={"step " + (depositStep === "success" ? "active" : "")}>
@@ -687,7 +689,68 @@ function MilestoneDetailPage() {
               </span>
             </div>
 
-            {depositStep === "review" && (
+            {depositStep === "method" && (
+              <>
+                <div className="form-label" style={{ fontSize: 12 }}>
+                  ▸ Choose how to fund the escrow
+                </div>
+                <div className="pay-method-grid">
+                  <button
+                    type="button"
+                    className="pay-method-card"
+                    onClick={() => {
+                      setDepositMethod("crypto");
+                      setDepositStep("review");
+                    }}
+                  >
+                    <div className="pmc-head">
+                      <span className="pmc-icon">◎</span>
+                      <span className="pmc-tag">recommended</span>
+                    </div>
+                    <div className="pmc-title">Pay with SOL</div>
+                    <div className="pmc-amount">◎ {milestone.amount}</div>
+                    <div className="pmc-sub">
+                      Sign with Phantom · funds locked on-chain in escrow PDA
+                    </div>
+                    <ul className="pmc-bullets">
+                      <li>Instant settlement</li>
+                      <li>Trustless escrow release</li>
+                      <li>No processor fees</li>
+                    </ul>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="pay-method-card"
+                    onClick={() => {
+                      setDepositMethod("fiat");
+                      setDepositStep("review");
+                    }}
+                  >
+                    <div className="pmc-head">
+                      <span className="pmc-icon">$</span>
+                      <span className="pmc-tag dim">card · ach</span>
+                    </div>
+                    <div className="pmc-title">Pay with fiat</div>
+                    <div className="pmc-amount">${fiatTotal}</div>
+                    <div className="pmc-sub">
+                      Charged in USD · converted to SOL and locked in escrow on your behalf
+                    </div>
+                    <ul className="pmc-bullets">
+                      <li>Visa · Mastercard · Amex</li>
+                      <li>Receipt emailed instantly</li>
+                      <li>3-day refund window</li>
+                    </ul>
+                  </button>
+                </div>
+                <p className="deposit-disclaimer">
+                  Both methods land the same amount in the milestone's escrow PDA. Fiat payments
+                  are converted at the prevailing SOL rate at confirmation.
+                </p>
+              </>
+            )}
+
+            {depositStep === "review" && depositMethod === "crypto" && (
               <>
                 <div className="deposit-summary">
                   <div className="row">
@@ -718,11 +781,104 @@ function MilestoneDetailPage() {
                   deliverable. Cancelling or rejecting the milestone returns funds to your wallet.
                 </p>
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                  <button className="btn" onClick={closeDeposit}>
-                    Cancel
+                  <button className="btn" onClick={() => setDepositStep("method")}>
+                    ← Back
                   </button>
                   <button className="btn btn-primary" onClick={handleConfirmDeposit}>
                     Sign &amp; deposit
+                  </button>
+                </div>
+              </>
+            )}
+
+            {depositStep === "review" && depositMethod === "fiat" && (
+              <>
+                <div className="deposit-summary">
+                  <div className="row">
+                    <span>Milestone</span>
+                    <b>{milestone.title}</b>
+                  </div>
+                  <div className="row">
+                    <span>Amount (SOL)</span>
+                    <b className="mono">◎ {milestone.amount}</b>
+                  </div>
+                  <div className="row">
+                    <span>Rate</span>
+                    <b className="mono">1 SOL ≈ ${SOL_USD_RATE}</b>
+                  </div>
+                  <div className="row total">
+                    <span>Charge</span>
+                    <b>${fiatTotal} USD</b>
+                  </div>
+                </div>
+
+                <div className="fiat-form">
+                  <div className="form-row">
+                    <label className="form-label">▸ Cardholder name</label>
+                    <input
+                      className="form-input"
+                      placeholder="Ada Lovelace"
+                      value={fiatCard.name}
+                      onChange={(e) => setFiatCard({ ...fiatCard, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label className="form-label">▸ Card number</label>
+                    <input
+                      className="form-input mono"
+                      placeholder="4242 4242 4242 4242"
+                      inputMode="numeric"
+                      value={fiatCard.number}
+                      onChange={(e) =>
+                        setFiatCard({ ...fiatCard, number: formatCardNumber(e.target.value) })
+                      }
+                    />
+                  </div>
+                  <div className="fiat-row-2">
+                    <div className="form-row">
+                      <label className="form-label">▸ Expiry (MM/YY)</label>
+                      <input
+                        className="form-input mono"
+                        placeholder="12/27"
+                        inputMode="numeric"
+                        value={fiatCard.exp}
+                        onChange={(e) =>
+                          setFiatCard({ ...fiatCard, exp: formatExp(e.target.value) })
+                        }
+                      />
+                    </div>
+                    <div className="form-row">
+                      <label className="form-label">▸ CVC</label>
+                      <input
+                        className="form-input mono"
+                        placeholder="123"
+                        inputMode="numeric"
+                        value={fiatCard.cvc}
+                        onChange={(e) =>
+                          setFiatCard({
+                            ...fiatCard,
+                            cvc: e.target.value.replace(/\D/g, "").slice(0, 4),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <p className="deposit-disclaimer">
+                  Test mode · no charge will be made. Your card details are not stored or
+                  transmitted. Funds will be converted to SOL and locked in the escrow PDA.
+                </p>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button className="btn" onClick={() => setDepositStep("method")}>
+                    ← Back
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleConfirmFiat}
+                    disabled={!fiatValid}
+                  >
+                    Pay ${fiatTotal}
                   </button>
                 </div>
               </>
@@ -734,12 +890,16 @@ function MilestoneDetailPage() {
                 <div className="deposit-progress-title">
                   {depositStep === "signing"
                     ? "Awaiting signature in Phantom…"
-                    : "Broadcasting transaction…"}
+                    : depositMethod === "fiat"
+                      ? "Processing card payment…"
+                      : "Broadcasting transaction…"}
                 </div>
                 <div className="deposit-progress-sub">
                   {depositStep === "signing"
                     ? "Approve the deposit in your Phantom wallet popup."
-                    : "Locking funds into the escrow PDA. Do not close this window."}
+                    : depositMethod === "fiat"
+                      ? "Authorising your card and converting to SOL. Do not close this window."
+                      : "Locking funds into the escrow PDA. Do not close this window."}
                 </div>
               </div>
             )}
@@ -747,15 +907,18 @@ function MilestoneDetailPage() {
             {depositStep === "success" && (
               <div className="deposit-success">
                 <div className="ok-badge">✓</div>
-                <div className="deposit-progress-title">Deposit confirmed</div>
+                <div className="deposit-progress-title">
+                  {depositMethod === "fiat" ? "Payment confirmed" : "Deposit confirmed"}
+                </div>
                 <div className="deposit-progress-sub">
-                  ◎ {milestone.amount} SOL locked in escrow. The provider can now begin work on
-                  this milestone.
+                  {depositMethod === "fiat"
+                    ? `$${fiatTotal} charged. ◎ ${milestone.amount} SOL has been locked in escrow. The provider can now begin work.`
+                    : `◎ ${milestone.amount} SOL locked in escrow. The provider can now begin work on this milestone.`}
                 </div>
                 {depositTxSig && (
                   <div className="deposit-tx">
                     <span className="form-label" style={{ fontSize: 11 }}>
-                      ▸ Tx signature
+                      ▸ {depositMethod === "fiat" ? "Receipt id" : "Tx signature"}
                     </span>
                     <code className="mono">{truncMiddle(depositTxSig, 10, 8)}</code>
                   </div>
@@ -769,7 +932,9 @@ function MilestoneDetailPage() {
             {depositStep === "error" && (
               <div className="deposit-progress">
                 <div className="err-badge">!</div>
-                <div className="deposit-progress-title">Deposit failed</div>
+                <div className="deposit-progress-title">
+                  {depositMethod === "fiat" ? "Payment failed" : "Deposit failed"}
+                </div>
                 <div className="auth-error" style={{ marginTop: 4 }}>
                   {depositError}
                 </div>
@@ -779,7 +944,10 @@ function MilestoneDetailPage() {
                   <button className="btn" onClick={closeDeposit}>
                     Close
                   </button>
-                  <button className="btn btn-primary" onClick={handleConfirmDeposit}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={depositMethod === "fiat" ? handleConfirmFiat : handleConfirmDeposit}
+                  >
                     Retry
                   </button>
                 </div>
