@@ -107,6 +107,13 @@ function MilestoneDetailPage() {
   const [specsLoading, setSpecsLoading] = useState(false);
   const [specsError, setSpecsError] = useState("");
 
+  // deposit flow (consumer only, when status === PENDING_DEPOSIT)
+  const [depositStep, setDepositStep] = useState<
+    "idle" | "review" | "signing" | "broadcasting" | "success" | "error"
+  >("idle");
+  const [depositTxSig, setDepositTxSig] = useState<string>("");
+  const [depositError, setDepositError] = useState("");
+
   useEffect(() => {
     if (!user) navigate({ to: "/auth" });
     else if (!user.role) navigate({ to: "/role" });
@@ -164,6 +171,62 @@ function MilestoneDetailPage() {
   const group = statusGroup(milestone.status);
   const isProvider = user.role === "provider";
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
+  const isConsumer = user.role === "consumer";
+  const needsDeposit = isConsumer && milestone.status === MilestoneStatus.PENDING_DEPOSIT;
+
+  const handleStartDeposit = () => {
+    setDepositError("");
+    setDepositTxSig("");
+    setDepositStep("review");
+  };
+
+  const handleConfirmDeposit = async () => {
+    setDepositError("");
+    setDepositStep("signing");
+    try {
+      const w = window as unknown as {
+        solana?: {
+          signMessage?: (msg: Uint8Array, enc: "utf8") => Promise<{ signature: Uint8Array }>;
+        };
+        phantom?: {
+          solana?: {
+            signMessage?: (msg: Uint8Array, enc: "utf8") => Promise<{ signature: Uint8Array }>;
+          };
+        };
+      };
+      const phantom = w.phantom?.solana ?? w.solana;
+      if (!phantom?.signMessage)
+        throw new Error("Phantom wallet not detected. Please reconnect your wallet.");
+
+      const payload = `git-escrow:deposit\nmilestone=${milestone.id}\namount=${milestone.amount}\npda=${milestone.pda ?? "n/a"}\nts=${Date.now()}`;
+      const encoded = new TextEncoder().encode(payload);
+      const { signature } = await phantom.signMessage(encoded, "utf8");
+
+      setDepositStep("broadcasting");
+      await new Promise((r) => setTimeout(r, 1400));
+
+      let hex = "";
+      for (const b of signature.slice(0, 32)) hex += b.toString(16).padStart(2, "0");
+      setDepositTxSig(hex);
+
+      setMilestone({
+        ...milestone,
+        status: MilestoneStatus.FUNDED,
+        fundedAt: new Date().toISOString(),
+      });
+      setDepositStep("success");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Deposit failed.";
+      setDepositError(msg);
+      setDepositStep("error");
+    }
+  };
+
+  const closeDeposit = () => {
+    setDepositStep("idle");
+    setDepositError("");
+    setDepositTxSig("");
+  };
 
   const handleAccept = async () => {
     setActionLoading(true);
@@ -343,6 +406,54 @@ function MilestoneDetailPage() {
             </div>
           )}
 
+          {/* Consumer deposit flow */}
+          {needsDeposit && (
+            <div className="deposit-band" style={{ marginTop: 32 }}>
+              <div className="deposit-band-head">
+                <div>
+                  <div className="form-label" style={{ fontSize: 13 }}>
+                    ▸ Action required · escrow deposit
+                  </div>
+                  <h3 className="deposit-title">Fund this milestone to start work</h3>
+                  <p className="deposit-sub">
+                    The provider has accepted the milestone. Lock{" "}
+                    <b>◎ {milestone.amount}</b> SOL into the escrow PDA so the developer can
+                    begin. Funds release only after you approve the delivery.
+                  </p>
+                </div>
+                <div className="deposit-amount-card">
+                  <span className="lbl">Amount due</span>
+                  <span className="val">◎ {milestone.amount}</span>
+                  <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
+                </div>
+              </div>
+              <div className="deposit-meta-row">
+                <span className="ms-chip">
+                  <span className="k">PDA</span>
+                  <span className="v">
+                    {milestone.pda ? truncMiddle(milestone.pda, 8, 6) : "— pending"}
+                  </span>
+                </span>
+                <span className="ms-chip">
+                  <span className="k">Provider</span>
+                  <span className="v">{shortenAddr(milestone.provider.publicKey)}</span>
+                </span>
+                <span className="ms-chip warn">
+                  <span className="k">Status</span>
+                  <span className="v">Awaiting deposit</span>
+                </span>
+              </div>
+              <div className="deposit-actions">
+                <button className="btn btn-primary" onClick={handleStartDeposit}>
+                  Deposit ◎ {milestone.amount} SOL
+                </button>
+                <span className="deposit-hint">
+                  You'll review and sign the transaction in Phantom.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Provider actions */}
           {isActionable && (
             <div style={{ marginTop: 32 }}>
@@ -471,6 +582,164 @@ function MilestoneDetailPage() {
               >
                 {specsContent}
               </pre>
+            )}
+          </div>
+        </div>
+      )}
+
+      {needsDeposit && depositStep !== "idle" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={
+            depositStep === "signing" || depositStep === "broadcasting"
+              ? undefined
+              : closeDeposit
+          }
+        >
+          <div className="deposit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="deposit-modal-head">
+              <div className="form-label" style={{ fontSize: 13 }}>
+                ▸ Escrow deposit
+              </div>
+              {depositStep !== "signing" && depositStep !== "broadcasting" && (
+                <button className="btn" style={{ fontSize: 12 }} onClick={closeDeposit}>
+                  Close
+                </button>
+              )}
+            </div>
+
+            <div className="deposit-steps">
+              <span
+                className={
+                  "step " +
+                  (["review", "signing", "broadcasting", "success"].includes(depositStep)
+                    ? "active"
+                    : "")
+                }
+              >
+                1 · Review
+              </span>
+              <span className="sep">—</span>
+              <span
+                className={
+                  "step " +
+                  (["signing", "broadcasting", "success"].includes(depositStep) ? "active" : "")
+                }
+              >
+                2 · Sign
+              </span>
+              <span className="sep">—</span>
+              <span className={"step " + (depositStep === "success" ? "active" : "")}>
+                3 · Funded
+              </span>
+            </div>
+
+            {depositStep === "review" && (
+              <>
+                <div className="deposit-summary">
+                  <div className="row">
+                    <span>Milestone</span>
+                    <b>{milestone.title}</b>
+                  </div>
+                  <div className="row">
+                    <span>Provider</span>
+                    <b className="mono">{shortenAddr(milestone.provider.publicKey)}</b>
+                  </div>
+                  <div className="row">
+                    <span>Escrow PDA</span>
+                    <b className="mono">
+                      {milestone.pda ? truncMiddle(milestone.pda, 10, 8) : "— pending"}
+                    </b>
+                  </div>
+                  <div className="row">
+                    <span>Deadline</span>
+                    <b>{fmtDateTime(milestone.depositDeadline)}</b>
+                  </div>
+                  <div className="row total">
+                    <span>Total to lock</span>
+                    <b>◎ {milestone.amount} SOL</b>
+                  </div>
+                </div>
+                <p className="deposit-disclaimer">
+                  Funds remain locked in the on-chain escrow PDA until you approve the milestone
+                  deliverable. Cancelling or rejecting the milestone returns funds to your wallet.
+                </p>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button className="btn" onClick={closeDeposit}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-primary" onClick={handleConfirmDeposit}>
+                    Sign &amp; deposit
+                  </button>
+                </div>
+              </>
+            )}
+
+            {(depositStep === "signing" || depositStep === "broadcasting") && (
+              <div className="deposit-progress">
+                <div className="spinner" />
+                <div className="deposit-progress-title">
+                  {depositStep === "signing"
+                    ? "Awaiting signature in Phantom…"
+                    : "Broadcasting transaction…"}
+                </div>
+                <div className="deposit-progress-sub">
+                  {depositStep === "signing"
+                    ? "Approve the deposit in your Phantom wallet popup."
+                    : "Locking funds into the escrow PDA. Do not close this window."}
+                </div>
+              </div>
+            )}
+
+            {depositStep === "success" && (
+              <div className="deposit-success">
+                <div className="ok-badge">✓</div>
+                <div className="deposit-progress-title">Deposit confirmed</div>
+                <div className="deposit-progress-sub">
+                  ◎ {milestone.amount} SOL locked in escrow. The provider can now begin work on
+                  this milestone.
+                </div>
+                {depositTxSig && (
+                  <div className="deposit-tx">
+                    <span className="form-label" style={{ fontSize: 11 }}>
+                      ▸ Tx signature
+                    </span>
+                    <code className="mono">{truncMiddle(depositTxSig, 10, 8)}</code>
+                  </div>
+                )}
+                <button className="btn btn-primary" onClick={closeDeposit}>
+                  Done
+                </button>
+              </div>
+            )}
+
+            {depositStep === "error" && (
+              <div className="deposit-progress">
+                <div className="err-badge">!</div>
+                <div className="deposit-progress-title">Deposit failed</div>
+                <div className="auth-error" style={{ marginTop: 4 }}>
+                  {depositError}
+                </div>
+                <div
+                  style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}
+                >
+                  <button className="btn" onClick={closeDeposit}>
+                    Close
+                  </button>
+                  <button className="btn btn-primary" onClick={handleConfirmDeposit}>
+                    Retry
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
