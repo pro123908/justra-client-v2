@@ -582,6 +582,46 @@ function MilestoneDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Provider-only: code delivery + report generation when milestone ACTIVE */}
+        {isActive && isProvider && (
+          <div style={{ marginTop: 32 }}>
+            <div className="section-h" style={{ marginBottom: 14 }}>
+              <span>▸ DELIVER CODE · GENERATE REPORT</span>
+              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
+                Provider workflow · escrow released on consensus
+              </span>
+            </div>
+            <CodeReport />
+          </div>
+        )}
+
+        {/* Consumer view of active milestone — informational, no upload */}
+        {isActive && isConsumer && (
+          <div style={{ marginTop: 32 }}>
+            <div className="section-h" style={{ marginBottom: 14 }}>
+              <span>▸ AWAITING DELIVERY</span>
+              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
+                Provider will submit a code archive &amp; spec for grading
+              </span>
+            </div>
+            <div
+              style={{
+                border: "1px dashed var(--line-2)",
+                borderRadius: 8,
+                padding: "20px 22px",
+                background: "var(--panel)",
+                color: "var(--ink-dim)",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              The escrow is funded and the provider has been cleared to begin work. When they submit
+              their codebase archive and specification, the verification engine will grade the
+              delivery and produce a release-or-reject verdict here.
+            </div>
+          </div>
+        )}
       </div>
 
       {specsOpen && (
