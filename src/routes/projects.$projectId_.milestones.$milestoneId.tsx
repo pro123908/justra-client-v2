@@ -109,10 +109,12 @@ function MilestoneDetailPage() {
 
   // deposit flow (consumer only, when status === PENDING_DEPOSIT)
   const [depositStep, setDepositStep] = useState<
-    "idle" | "review" | "signing" | "broadcasting" | "success" | "error"
+    "idle" | "method" | "review" | "signing" | "broadcasting" | "success" | "error"
   >("idle");
   const [depositTxSig, setDepositTxSig] = useState<string>("");
   const [depositError, setDepositError] = useState("");
+  const [depositMethod, setDepositMethod] = useState<"crypto" | "fiat" | null>(null);
+  const [fiatCard, setFiatCard] = useState({ name: "", number: "", exp: "", cvc: "" });
 
   useEffect(() => {
     if (!user) navigate({ to: "/auth" });
@@ -177,7 +179,8 @@ function MilestoneDetailPage() {
   const handleStartDeposit = () => {
     setDepositError("");
     setDepositTxSig("");
-    setDepositStep("review");
+    setDepositMethod(null);
+    setDepositStep("method");
   };
 
   const handleConfirmDeposit = async () => {
@@ -226,7 +229,48 @@ function MilestoneDetailPage() {
     setDepositStep("idle");
     setDepositError("");
     setDepositTxSig("");
+    setDepositMethod(null);
+    setFiatCard({ name: "", number: "", exp: "", cvc: "" });
   };
+
+  // Pretend USD price per SOL — for display only, no integration.
+  const SOL_USD_RATE = 165;
+  const fiatTotal = (Number(milestone?.amount ?? 0) * SOL_USD_RATE).toFixed(2);
+
+  const handleConfirmFiat = async () => {
+    setDepositError("");
+    setDepositStep("broadcasting");
+    try {
+      // Simulated processor latency.
+      await new Promise((r) => setTimeout(r, 1600));
+      const ref =
+        "ch_" +
+        Math.random().toString(36).slice(2, 10) +
+        Math.random().toString(36).slice(2, 6);
+      setDepositTxSig(ref);
+      setMilestone({
+        ...milestone,
+        status: MilestoneStatus.FUNDED,
+        fundedAt: new Date().toISOString(),
+      });
+      setDepositStep("success");
+    } catch (e) {
+      setDepositError(e instanceof Error ? e.message : "Payment failed.");
+      setDepositStep("error");
+    }
+  };
+
+  const formatCardNumber = (v: string) =>
+    v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+  const formatExp = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 4);
+    return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  };
+  const fiatValid =
+    fiatCard.name.trim().length > 1 &&
+    fiatCard.number.replace(/\s/g, "").length === 16 &&
+    /^\d{2}\/\d{2}$/.test(fiatCard.exp) &&
+    /^\d{3,4}$/.test(fiatCard.cvc);
 
   const handleAccept = async () => {
     setActionLoading(true);
