@@ -66,6 +66,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (user.role === "provider") {
       Promise.all([projectApi.getMembers(token), inviteApi.getMyInvites(token)])
         .then(([members, invites]) => {
+          console.log("🚀 ~ AppDataProvider ~ invites:", invites);
           setMemberProjects(members.map(mapProject));
           setMyInvites(invites);
         })
@@ -117,7 +118,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const projectsForProvider: DataCtx["projectsForProvider"] = (_address) => memberProjects;
 
   const invitesForProvider: DataCtx["invitesForProvider"] = (_address) =>
-    myInvites.map((inv) => ({
+    myInvites.filter((inv) => inv.status === "pending").map((inv) => ({
       project: mapProject(inv.project),
       invite: {
         id: inv.id,

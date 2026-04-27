@@ -196,8 +196,8 @@ function ProviderDashboard({
             {invites.map(({ project, invite }) => (
               <div key={invite.id} className="invite-card">
                 <div>
-                  <div className="pc-id">{project.id}</div>
-                  <div className="pc-title">{project.name}</div>
+                  <div className="pc-id">{project.name}</div>
+                  <div className="pc-title">{project.id}</div>
                   <div className="invite-meta">
                     Owner <b>{project.ownerId}</b>
                   </div>
