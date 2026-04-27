@@ -42,14 +42,12 @@ const fmtDate = (s?: string | null) => {
 function statusGroup(s: MilestoneStatus): "pending" | "approved" | "rejected" {
   switch (s) {
     case MilestoneStatus.PENDING_PROVIDER_APPROVAL:
-    case MilestoneStatus.PENDING_DEPOSIT:
+    case MilestoneStatus.WAITING_FOR_DEPOSIT:
       return "pending";
-    case MilestoneStatus.APPROVED:
-    case MilestoneStatus.FUNDED:
-    case MilestoneStatus.COMPLETED:
+    case MilestoneStatus.ACTIVE:
+    case MilestoneStatus.IN_PROGRESS:
       return "approved";
     case MilestoneStatus.REJECTED:
-    case MilestoneStatus.CANCELLED:
       return "rejected";
     default:
       return "pending";
@@ -60,18 +58,14 @@ function statusLabel(s: MilestoneStatus) {
   switch (s) {
     case MilestoneStatus.PENDING_PROVIDER_APPROVAL:
       return "Pending provider approval";
-    case MilestoneStatus.APPROVED:
-      return "Approved";
+    case MilestoneStatus.ACTIVE:
+      return "Active · awaiting delivery";
     case MilestoneStatus.REJECTED:
       return "Rejected";
-    case MilestoneStatus.PENDING_DEPOSIT:
+    case MilestoneStatus.WAITING_FOR_DEPOSIT:
       return "Awaiting deposit";
-    case MilestoneStatus.FUNDED:
-      return "Funded · escrow live";
-    case MilestoneStatus.COMPLETED:
-      return "Completed";
-    case MilestoneStatus.CANCELLED:
-      return "Cancelled";
+    case MilestoneStatus.IN_PROGRESS:
+      return "In progress";
     default:
       return String(s);
   }

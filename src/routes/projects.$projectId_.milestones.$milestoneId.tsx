@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
 import { milestoneApi, MilestoneStatus, type MilestoneResponse } from "@/lib/api";
+import CodeReport from "@/components/milestone/CodeReport";
 import "@/components/git-escrow.css";
 
 export const Route = createFileRoute("/projects/$projectId_/milestones/$milestoneId")({
@@ -166,6 +167,7 @@ function MilestoneDetailPage() {
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
   const isConsumer = user.role === "consumer";
   const needsDeposit = isConsumer && milestone.status === MilestoneStatus.WAITING_FOR_DEPOSIT;
+  const isActive = milestone.status === MilestoneStatus.ACTIVE;
   console.log(
     "🚀 ~ MilestoneDetailPage ~ needsDeposit:",
     needsDeposit,
@@ -408,6 +410,15 @@ function MilestoneDetailPage() {
             </div>
           )}
 
+          {/* Active milestone band — countdown to endDate */}
+          {isActive && (
+            <ActiveMilestoneBand
+              endDate={milestone.endDate}
+              amount={milestone.amount}
+              fundedAt={milestone.fundedAt}
+            />
+          )}
+
           <div className="ms-hero">
             <div className="ms-hero-amount">
               <span className="lbl">Escrow value</span>
@@ -571,6 +582,46 @@ function MilestoneDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Provider-only: code delivery + report generation when milestone ACTIVE */}
+        {isActive && isProvider && (
+          <div style={{ marginTop: 32 }}>
+            <div className="section-h" style={{ marginBottom: 14 }}>
+              <span>▸ DELIVER CODE · GENERATE REPORT</span>
+              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
+                Provider workflow · escrow released on consensus
+              </span>
+            </div>
+            <CodeReport />
+          </div>
+        )}
+
+        {/* Consumer view of active milestone — informational, no upload */}
+        {isActive && isConsumer && (
+          <div style={{ marginTop: 32 }}>
+            <div className="section-h" style={{ marginBottom: 14 }}>
+              <span>▸ AWAITING DELIVERY</span>
+              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
+                Provider will submit a code archive &amp; spec for grading
+              </span>
+            </div>
+            <div
+              style={{
+                border: "1px dashed var(--line-2)",
+                borderRadius: 8,
+                padding: "20px 22px",
+                background: "var(--panel)",
+                color: "var(--ink-dim)",
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              The escrow is funded and the provider has been cleared to begin work. When they submit
+              their codebase archive and specification, the verification engine will grade the
+              delivery and produce a release-or-reject verdict here.
+            </div>
+          </div>
+        )}
       </div>
 
       {specsOpen && (
@@ -948,6 +999,108 @@ function MilestoneDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActiveMilestoneBand({
+  endDate,
+  amount,
+  fundedAt,
+}: {
+  endDate: string | null;
+  amount: string;
+  fundedAt: string | null;
+}) {
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const endMs = endDate ? new Date(endDate).getTime() : null;
+  const totalRemaining = endMs ? endMs - now : null;
+  const overdue = totalRemaining !== null && totalRemaining < 0;
+  const absRemaining = totalRemaining === null ? 0 : Math.abs(totalRemaining);
+
+  const days = Math.floor(absRemaining / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((absRemaining / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((absRemaining / (1000 * 60)) % 60);
+  const seconds = Math.floor((absRemaining / 1000) % 60);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  // Progress bar: how much of the funded → endDate window has elapsed.
+  const startMs = fundedAt ? new Date(fundedAt).getTime() : null;
+  let pct = 0;
+  if (startMs && endMs && endMs > startMs) {
+    pct = Math.min(100, Math.max(0, ((now - startMs) / (endMs - startMs)) * 100));
+  }
+
+  const tone = overdue ? "overdue" : days < 1 ? "warn" : "ok";
+
+  return (
+    <div className={"active-band " + tone} style={{ marginTop: 32 }}>
+      <div className="active-band-head">
+        <div>
+          <div className="form-label" style={{ fontSize: 13 }}>
+            ▸ Milestone active · escrow live
+          </div>
+          <h3 className="active-title">
+            {overdue ? "Delivery window overdue" : "Time remaining to deliver"}
+          </h3>
+          <p className="active-sub">
+            ◎ {amount} SOL is locked in escrow. The provider must ship the codebase &amp; spec
+            before the deadline to claim the funds.
+          </p>
+        </div>
+        <div className="countdown">
+          {endDate ? (
+            <>
+              <div className="cd-grid">
+                <div className="cd-cell">
+                  <span className="n">{pad(days)}</span>
+                  <span className="u">days</span>
+                </div>
+                <span className="sep">:</span>
+                <div className="cd-cell">
+                  <span className="n">{pad(hours)}</span>
+                  <span className="u">hrs</span>
+                </div>
+                <span className="sep">:</span>
+                <div className="cd-cell">
+                  <span className="n">{pad(minutes)}</span>
+                  <span className="u">min</span>
+                </div>
+                <span className="sep">:</span>
+                <div className="cd-cell">
+                  <span className="n">{pad(seconds)}</span>
+                  <span className="u">sec</span>
+                </div>
+              </div>
+              <div className="cd-target">
+                {overdue ? "overdue since " : "target "}
+                {fmtDateTime(endDate)}
+              </div>
+            </>
+          ) : (
+            <div className="cd-target">No end date set</div>
+          )}
+        </div>
+      </div>
+      {endDate && (
+        <div className="active-progress" aria-hidden>
+          <div className="bar">
+            <i style={{ width: `${pct}%` }} />
+          </div>
+          <div className="bar-meta">
+            <span>funded {fundedAt ? fmtDateTime(fundedAt) : "—"}</span>
+            <span>{overdue ? "100%+" : `${Math.round(pct)}% elapsed`}</span>
+            <span>deadline {fmtDateTime(endDate)}</span>
           </div>
         </div>
       )}

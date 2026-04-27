@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import "./git-escrow.css";
-import Navbar from "./app/Navbar";
+import "@/components/git-escrow.css";
 
 /* ---------------- helpers ---------------- */
 const fmtBytes = (b: number) => {
@@ -536,8 +535,8 @@ function AnalysisReport({ data }: { data: AnalysisResponse }) {
   );
 }
 
-/* ---------------- main ---------------- */
-export default function GitEscrow() {
+/* ---------------- main exported component ---------------- */
+export default function CodeReport() {
   const [codebase, setCodebase] = useState<File | null>(null);
   const [codebaseAnimKey, setCodebaseAnimKey] = useState(0);
   const [codebaseAnimating, setCodebaseAnimating] = useState(false);
@@ -546,15 +545,12 @@ export default function GitEscrow() {
   const [reqAnimKey, setReqAnimKey] = useState(0);
   const [reqAnimating, setReqAnimating] = useState(false);
 
-  // modal 1 (codebase zip)
   const [modal1, setModal1] = useState(false);
   const [stagedCodebase, setStagedCodebase] = useState<File | null>(null);
 
-  // modal 2 (requirements doc)
   const [modal2, setModal2] = useState(false);
   const [stagedReq, setStagedReq] = useState<File | null>(null);
 
-  // loading
   const [loadingOpen, setLoadingOpen] = useState(false);
   const [loadTitle, setLoadTitle] = useState("Analyzing codebase");
   const [loadSub, setLoadSub] = useState("This will take approximately 30–120 seconds.");
@@ -567,7 +563,6 @@ export default function GitEscrow() {
   const requirementsOk = !!requirements;
   const generateEnabled = codebaseOk && requirementsOk;
 
-  /* ----- modal 1 confirm ----- */
   const confirmCodebase = () => {
     if (!stagedCodebase) return;
     setCodebase(stagedCodebase);
@@ -577,7 +572,6 @@ export default function GitEscrow() {
     setStagedCodebase(null);
   };
 
-  /* ----- modal 2 confirm ----- */
   const confirmReq = () => {
     if (!stagedReq) return;
     setRequirements(stagedReq);
@@ -587,7 +581,6 @@ export default function GitEscrow() {
     setStagedReq(null);
   };
 
-  /* ----- analyze ----- */
   const runAnalysis = async () => {
     if (!codebase || !requirements) return;
 
@@ -598,7 +591,6 @@ export default function GitEscrow() {
     setLoadTitle("Analyzing codebase");
     setLoadSub("Indexing code and evaluating requirements. This may take 30–120 seconds.");
 
-    // animate progress from 0 to 95 over ~80 seconds
     const startTime = Date.now();
     const targetDuration = 80_000;
     const ticker = setInterval(() => {
@@ -637,193 +629,147 @@ export default function GitEscrow() {
     }
   };
 
-  /* ---------------- render ---------------- */
   return (
-    <div className="git-escrow-root">
-      <div className="wrap">
-        {/* TOP BAR */}
-        <Navbar />
-
-        {/* HERO */}
-        <div className="hero">
-          <div>
-            <div className="eyebrow">Milestone Verification · Step 3 of 4</div>
-            <h1>
-              Submit the spec.
-              <br />
-              Submit the code.
-              <br />
-              <em>Ship the verdict.</em>
-            </h1>
-            <p className="lede">
-              Upload the <b>requirements document</b> and the <b>codebase archive</b>. The analysis
-              engine scores each requirement against the submitted code and produces a detailed
-              verdict that triggers the escrow release.
-            </p>
+    <>
+      <div className="zones">
+        <section className={"zone" + (codebaseOk ? " filled" : "")} id="zone1">
+          <div className="zone-head">
+            <div>
+              <div className="zone-label">Input · 01</div>
+              <div className="zone-title">Codebase Archive</div>
+              <p className="zone-desc">
+                A .zip of the project source code to be evaluated against the requirements.
+              </p>
+            </div>
+            <div className="zone-badge">.ZIP</div>
           </div>
-          <aside className="hero-aside">
-            <h4>&gt; Pipeline</h4>
-            <ol>
-              <li>
-                <b>Ingest</b> requirements + codebase
-              </li>
-              <li>
-                <b>Index</b> code chunks for retrieval
-              </li>
-              <li>
-                <b>Score</b> each requirement via LLM
-              </li>
-              <li>
-                <b>Execute</b> smart contract on consent
-              </li>
-            </ol>
-          </aside>
-        </div>
-
-        {/* UPLOAD ZONES */}
-        <div className="zones">
-          <section className={"zone" + (codebaseOk ? " filled" : "")} id="zone1">
-            <div className="zone-head">
-              <div>
-                <div className="zone-label">Input · 01</div>
-                <div className="zone-title">Codebase Archive</div>
-                <p className="zone-desc">
-                  A .zip of the project source code to be evaluated against the requirements.
-                </p>
-              </div>
-              <div className="zone-badge">.ZIP</div>
-            </div>
-            <button className="drop-btn" onClick={() => setModal1(true)}>
-              <span className="plus">+</span>
-              <span className="txt">
-                <div>Upload codebase archive</div>
-                <div className="hint">One .zip file · max 50 MB</div>
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--display)",
-                  fontWeight: 600,
-                  color: "var(--ink-mute)",
-                }}
-              >
-                →
-              </span>
-            </button>
-            <div className="file-manifest">
-              {codebase && (
-                <FileRow
-                  key={codebaseAnimKey}
-                  file={codebase}
-                  uploading={codebaseAnimating}
-                  onRemove={() => {
-                    setCodebase(null);
-                    setCodebaseAnimating(false);
-                  }}
-                />
-              )}
-            </div>
-            <div className="zone-accepts">
-              <b>Accepts</b> &nbsp;·&nbsp; .zip archive of project source code
-            </div>
-          </section>
-
-          <section className={"zone" + (requirementsOk ? " filled" : "")} id="zone2">
-            <div className="zone-head">
-              <div>
-                <div className="zone-label">Input · 02</div>
-                <div className="zone-title">Requirements Document</div>
-                <p className="zone-desc">
-                  The specification or acceptance criteria document that defines what the codebase
-                  must implement.
-                </p>
-              </div>
-              <div className="zone-badge">DOC</div>
-            </div>
-            <button className="drop-btn" onClick={() => setModal2(true)}>
-              <span className="plus">+</span>
-              <span className="txt">
-                <div>Upload requirements document</div>
-                <div className="hint">One file · .txt · .pdf · .docx</div>
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--display)",
-                  fontWeight: 600,
-                  color: "var(--ink-mute)",
-                }}
-              >
-                →
-              </span>
-            </button>
-            <div className="file-manifest">
-              {requirements && (
-                <FileRow
-                  key={reqAnimKey}
-                  file={requirements}
-                  uploading={reqAnimating}
-                  onRemove={() => {
-                    setRequirements(null);
-                    setReqAnimating(false);
-                  }}
-                />
-              )}
-            </div>
-            <div className="zone-accepts">
-              <b>Accepts</b> &nbsp;·&nbsp; .txt &nbsp;·&nbsp; .pdf &nbsp;·&nbsp; .docx
-            </div>
-          </section>
-        </div>
-
-        {/* ERROR */}
-        {error && (
-          <div
-            style={{
-              margin: "16px 0",
-              padding: "14px 18px",
-              borderRadius: 6,
-              background: "#ef444411",
-              border: "1px solid #ef444433",
-              color: "#ef4444",
-              fontSize: 13,
-              fontFamily: "var(--display)",
-            }}
-          >
-            <b>Error:</b> {error}
-          </div>
-        )}
-
-        {/* CTA */}
-        <div className="cta-row">
-          <div className="cta-meta">
-            <div className={"item " + (codebaseOk ? "ok" : "no")}>
-              <span className="chk" /> CODEBASE
-            </div>
-            <div className={"item " + (requirementsOk ? "ok" : "no")}>
-              <span className="chk" /> REQUIREMENTS
-            </div>
-            <div className="item ok">
-              <span className="chk" /> ESCROW LOCKED
-            </div>
-          </div>
-          <button className="btn-generate" disabled={!generateEnabled} onClick={runAnalysis}>
-            Generate Report<span className="ar">→</span>
+          <button className="drop-btn" onClick={() => setModal1(true)}>
+            <span className="plus">+</span>
+            <span className="txt">
+              <div>Upload codebase archive</div>
+              <div className="hint">One .zip file · max 50 MB</div>
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--display)",
+                fontWeight: 600,
+                color: "var(--ink-mute)",
+              }}
+            >
+              →
+            </span>
           </button>
-          <div
-            style={{
-              color: "var(--ink-mute)",
-              fontSize: 10,
-              letterSpacing: "0.25em",
-              textTransform: "uppercase",
-            }}
-          >
-            LLM-powered requirement analysis · 30–120 seconds
+          <div className="file-manifest">
+            {codebase && (
+              <FileRow
+                key={codebaseAnimKey}
+                file={codebase}
+                uploading={codebaseAnimating}
+                onRemove={() => {
+                  setCodebase(null);
+                  setCodebaseAnimating(false);
+                }}
+              />
+            )}
           </div>
-        </div>
+          <div className="zone-accepts">
+            <b>Accepts</b> &nbsp;·&nbsp; .zip archive of project source code
+          </div>
+        </section>
 
-        {analysis && <AnalysisReport data={analysis} />}
+        <section className={"zone" + (requirementsOk ? " filled" : "")} id="zone2">
+          <div className="zone-head">
+            <div>
+              <div className="zone-label">Input · 02</div>
+              <div className="zone-title">Requirements Document</div>
+              <p className="zone-desc">
+                The specification or acceptance criteria document that defines what the codebase
+                must implement.
+              </p>
+            </div>
+            <div className="zone-badge">DOC</div>
+          </div>
+          <button className="drop-btn" onClick={() => setModal2(true)}>
+            <span className="plus">+</span>
+            <span className="txt">
+              <div>Upload requirements document</div>
+              <div className="hint">One file · .txt · .pdf · .docx</div>
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--display)",
+                fontWeight: 600,
+                color: "var(--ink-mute)",
+              }}
+            >
+              →
+            </span>
+          </button>
+          <div className="file-manifest">
+            {requirements && (
+              <FileRow
+                key={reqAnimKey}
+                file={requirements}
+                uploading={reqAnimating}
+                onRemove={() => {
+                  setRequirements(null);
+                  setReqAnimating(false);
+                }}
+              />
+            )}
+          </div>
+          <div className="zone-accepts">
+            <b>Accepts</b> &nbsp;·&nbsp; .txt &nbsp;·&nbsp; .pdf &nbsp;·&nbsp; .docx
+          </div>
+        </section>
       </div>
 
-      {/* MODAL 1 — codebase */}
+      {error && (
+        <div
+          style={{
+            margin: "16px 0",
+            padding: "14px 18px",
+            borderRadius: 6,
+            background: "#ef444411",
+            border: "1px solid #ef444433",
+            color: "#ef4444",
+            fontSize: 13,
+            fontFamily: "var(--display)",
+          }}
+        >
+          <b>Error:</b> {error}
+        </div>
+      )}
+
+      <div className="cta-row">
+        <div className="cta-meta">
+          <div className={"item " + (codebaseOk ? "ok" : "no")}>
+            <span className="chk" /> CODEBASE
+          </div>
+          <div className={"item " + (requirementsOk ? "ok" : "no")}>
+            <span className="chk" /> REQUIREMENTS
+          </div>
+          <div className="item ok">
+            <span className="chk" /> ESCROW LOCKED
+          </div>
+        </div>
+        <button className="btn-generate" disabled={!generateEnabled} onClick={runAnalysis}>
+          Generate Report<span className="ar">→</span>
+        </button>
+        <div
+          style={{
+            color: "var(--ink-mute)",
+            fontSize: 10,
+            letterSpacing: "0.25em",
+            textTransform: "uppercase",
+          }}
+        >
+          LLM-powered requirement analysis · 30–120 seconds
+        </div>
+      </div>
+
+      {analysis && <AnalysisReport data={analysis} />}
+
       <Modal
         open={modal1}
         onClose={() => {
@@ -870,7 +816,6 @@ export default function GitEscrow() {
         </div>
       </Modal>
 
-      {/* MODAL 2 — requirements */}
       <Modal
         open={modal2}
         onClose={() => {
@@ -911,8 +856,7 @@ export default function GitEscrow() {
         </div>
       </Modal>
 
-      {/* LOADING */}
       <LoadingModal open={loadingOpen} title={loadTitle} sub={loadSub} pct={loadPct} />
-    </div>
+    </>
   );
 }
