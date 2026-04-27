@@ -133,12 +133,10 @@ export const inviteApi = {
 
 export enum MilestoneStatus {
   PENDING_PROVIDER_APPROVAL = "pending_provider_approval",
-  APPROVED = "approved",
   REJECTED = "rejected",
-  PENDING_DEPOSIT = "pending_deposit",
-  FUNDED = "funded",
-  COMPLETED = "completed",
-  CANCELLED = "cancelled",
+  WAITING_FOR_DEPOSIT = "waiting_for_deposit",
+  ACTIVE = "active",
+  IN_PROGRESS = "in_progress",
 }
 
 export type MilestoneResponse = {

@@ -51,14 +51,11 @@ const truncMiddle = (s?: string | null, head = 6, tail = 6) => {
 function statusGroup(s: MilestoneStatus): "pending" | "approved" | "rejected" {
   switch (s) {
     case MilestoneStatus.PENDING_PROVIDER_APPROVAL:
-    case MilestoneStatus.PENDING_DEPOSIT:
+    case MilestoneStatus.WAITING_FOR_DEPOSIT:
       return "pending";
-    case MilestoneStatus.APPROVED:
-    case MilestoneStatus.FUNDED:
-    case MilestoneStatus.COMPLETED:
+    case MilestoneStatus.ACTIVE:
       return "approved";
     case MilestoneStatus.REJECTED:
-    case MilestoneStatus.CANCELLED:
       return "rejected";
     default:
       return "pending";
@@ -69,18 +66,12 @@ function statusLabel(s: MilestoneStatus) {
   switch (s) {
     case MilestoneStatus.PENDING_PROVIDER_APPROVAL:
       return "Pending provider approval";
-    case MilestoneStatus.APPROVED:
-      return "Approved";
+    case MilestoneStatus.ACTIVE:
+      return "Active · awaiting delivery";
     case MilestoneStatus.REJECTED:
       return "Rejected";
-    case MilestoneStatus.PENDING_DEPOSIT:
+    case MilestoneStatus.WAITING_FOR_DEPOSIT:
       return "Awaiting deposit";
-    case MilestoneStatus.FUNDED:
-      return "Funded · escrow live";
-    case MilestoneStatus.COMPLETED:
-      return "Completed";
-    case MilestoneStatus.CANCELLED:
-      return "Cancelled";
     default:
       return String(s);
   }
@@ -174,7 +165,13 @@ function MilestoneDetailPage() {
   const isProvider = user.role === "provider";
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
   const isConsumer = user.role === "consumer";
-  const needsDeposit = isConsumer && milestone.status === MilestoneStatus.PENDING_DEPOSIT;
+  const needsDeposit = isConsumer && milestone.status === MilestoneStatus.WAITING_FOR_DEPOSIT;
+  console.log(
+    "🚀 ~ MilestoneDetailPage ~ needsDeposit:",
+    needsDeposit,
+    milestone.status,
+    MilestoneStatus.WAITING_FOR_DEPOSIT,
+  );
 
   const handleStartDeposit = () => {
     setDepositError("");
@@ -214,7 +211,7 @@ function MilestoneDetailPage() {
 
       setMilestone({
         ...milestone,
-        status: MilestoneStatus.FUNDED,
+        status: MilestoneStatus.ACTIVE,
         fundedAt: new Date().toISOString(),
       });
       setDepositStep("success");
@@ -244,13 +241,11 @@ function MilestoneDetailPage() {
       // Simulated processor latency.
       await new Promise((r) => setTimeout(r, 1600));
       const ref =
-        "ch_" +
-        Math.random().toString(36).slice(2, 10) +
-        Math.random().toString(36).slice(2, 6);
+        "ch_" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
       setDepositTxSig(ref);
       setMilestone({
         ...milestone,
-        status: MilestoneStatus.FUNDED,
+        status: MilestoneStatus.ACTIVE,
         fundedAt: new Date().toISOString(),
       });
       setDepositStep("success");
@@ -261,7 +256,11 @@ function MilestoneDetailPage() {
   };
 
   const formatCardNumber = (v: string) =>
-    v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+    v
+      .replace(/\D/g, "")
+      .slice(0, 16)
+      .replace(/(.{4})/g, "$1 ")
+      .trim();
   const formatExp = (v: string) => {
     const d = v.replace(/\D/g, "").slice(0, 4);
     return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
@@ -360,7 +359,55 @@ function MilestoneDetailPage() {
         </div>
 
         {/* Hero */}
-        <div className="ms-detail" style={{ marginTop: 32 }}>
+        <div className="ms-detail" style={{ marginBottom: 32 }}>
+          {/* Consumer deposit flow */}
+          {needsDeposit && (
+            <div className="deposit-band" style={{ marginTop: 32 }}>
+              <div className="deposit-band-head">
+                <div>
+                  <div className="form-label" style={{ fontSize: 13 }}>
+                    ▸ Action required · escrow deposit
+                  </div>
+                  <h3 className="deposit-title">Fund this milestone to start work</h3>
+                  <p className="deposit-sub">
+                    The provider has accepted the milestone. Lock <b>◎ {milestone.amount}</b> SOL
+                    into the escrow PDA so the developer can begin. Funds release only after you
+                    approve the delivery.
+                  </p>
+                </div>
+                <div className="deposit-amount-card">
+                  <span className="lbl">Amount due</span>
+                  <span className="val">◎ {milestone.amount}</span>
+                  <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
+                </div>
+              </div>
+              <div className="deposit-meta-row">
+                <span className="ms-chip">
+                  <span className="k">PDA</span>
+                  <span className="v">
+                    {milestone.pda ? truncMiddle(milestone.pda, 8, 6) : "— pending"}
+                  </span>
+                </span>
+                <span className="ms-chip">
+                  <span className="k">Provider</span>
+                  <span className="v">{shortenAddr(milestone.provider.publicKey)}</span>
+                </span>
+                <span className="ms-chip warn">
+                  <span className="k">Status</span>
+                  <span className="v">Awaiting deposit</span>
+                </span>
+              </div>
+              <div className="deposit-actions">
+                <button className="btn btn-primary" onClick={handleStartDeposit}>
+                  Fund milestone — ◎ {milestone.amount} SOL / ${fiatTotal}
+                </button>
+                <span className="deposit-hint">
+                  Choose to pay with crypto (SOL) or fiat (card).
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="ms-hero">
             <div className="ms-hero-amount">
               <span className="lbl">Escrow value</span>
@@ -446,54 +493,6 @@ function MilestoneDetailPage() {
               </div>
               <div className="ms-detail-desc" style={{ borderColor: "var(--red)" }}>
                 {milestone.rejectionReason}
-              </div>
-            </div>
-          )}
-
-          {/* Consumer deposit flow */}
-          {needsDeposit && (
-            <div className="deposit-band" style={{ marginTop: 32 }}>
-              <div className="deposit-band-head">
-                <div>
-                  <div className="form-label" style={{ fontSize: 13 }}>
-                    ▸ Action required · escrow deposit
-                  </div>
-                  <h3 className="deposit-title">Fund this milestone to start work</h3>
-                  <p className="deposit-sub">
-                    The provider has accepted the milestone. Lock{" "}
-                    <b>◎ {milestone.amount}</b> SOL into the escrow PDA so the developer can
-                    begin. Funds release only after you approve the delivery.
-                  </p>
-                </div>
-                <div className="deposit-amount-card">
-                  <span className="lbl">Amount due</span>
-                  <span className="val">◎ {milestone.amount}</span>
-                  <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
-                </div>
-              </div>
-              <div className="deposit-meta-row">
-                <span className="ms-chip">
-                  <span className="k">PDA</span>
-                  <span className="v">
-                    {milestone.pda ? truncMiddle(milestone.pda, 8, 6) : "— pending"}
-                  </span>
-                </span>
-                <span className="ms-chip">
-                  <span className="k">Provider</span>
-                  <span className="v">{shortenAddr(milestone.provider.publicKey)}</span>
-                </span>
-                <span className="ms-chip warn">
-                  <span className="k">Status</span>
-                  <span className="v">Awaiting deposit</span>
-                </span>
-              </div>
-              <div className="deposit-actions">
-                <button className="btn btn-primary" onClick={handleStartDeposit}>
-                  Fund milestone — ◎ {milestone.amount} SOL / ${fiatTotal}
-                </button>
-                <span className="deposit-hint">
-                  Choose to pay with crypto (SOL) or fiat (card).
-                </span>
               </div>
             </div>
           )}
@@ -644,9 +643,7 @@ function MilestoneDetailPage() {
             padding: 20,
           }}
           onClick={
-            depositStep === "signing" || depositStep === "broadcasting"
-              ? undefined
-              : closeDeposit
+            depositStep === "signing" || depositStep === "broadcasting" ? undefined : closeDeposit
           }
         >
           <div className="deposit-modal" onClick={(e) => e.stopPropagation()}>
@@ -744,8 +741,8 @@ function MilestoneDetailPage() {
                   </button>
                 </div>
                 <p className="deposit-disclaimer">
-                  Both methods land the same amount in the milestone's escrow PDA. Fiat payments
-                  are converted at the prevailing SOL rate at confirmation.
+                  Both methods land the same amount in the milestone's escrow PDA. Fiat payments are
+                  converted at the prevailing SOL rate at confirmation.
                 </p>
               </>
             )}
@@ -938,9 +935,7 @@ function MilestoneDetailPage() {
                 <div className="auth-error" style={{ marginTop: 4 }}>
                   {depositError}
                 </div>
-                <div
-                  style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}
-                >
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
                   <button className="btn" onClick={closeDeposit}>
                     Close
                   </button>

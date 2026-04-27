@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
