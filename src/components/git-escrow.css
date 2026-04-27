@@ -941,3 +941,141 @@ h1 em{font-style:normal;color:var(--neon);font-weight:500}
   color:var(--ink-mute);font-size:10px;letter-spacing:0.15em;text-transform:uppercase;margin-top:2px;
 }
 
+
+/* ============ Deposit flow (consumer) ============ */
+.deposit-band{
+  border:1px solid var(--neon);
+  background:linear-gradient(135deg,rgba(0,255,170,0.06),rgba(0,0,0,0.4));
+  padding:24px;
+  position:relative;
+  box-shadow:0 0 0 1px rgba(0,255,170,0.08), 0 10px 40px -20px rgba(0,255,170,0.4);
+}
+.deposit-band::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--neon);
+  animation:pulse-bar 2.4s ease-in-out infinite;
+}
+@keyframes pulse-bar{0%,100%{opacity:0.5}50%{opacity:1}}
+.deposit-band-head{
+  display:grid;grid-template-columns:1fr auto;gap:24px;align-items:start;
+}
+@media (max-width:720px){.deposit-band-head{grid-template-columns:1fr}}
+.deposit-title{
+  font-family:var(--display);font-size:22px;color:var(--ink);
+  margin:8px 0 6px;letter-spacing:0.02em;
+}
+.deposit-sub{
+  color:var(--ink-mute);font-size:13px;line-height:1.55;max-width:560px;margin:0;
+}
+.deposit-amount-card{
+  display:flex;flex-direction:column;gap:4px;
+  border:1px dashed var(--neon);padding:14px 18px;min-width:220px;
+  background:rgba(0,0,0,0.4);
+}
+.deposit-amount-card .lbl{
+  color:var(--ink-mute);font-size:10px;letter-spacing:0.18em;text-transform:uppercase;
+}
+.deposit-amount-card .val{
+  font-family:var(--display);font-size:28px;color:var(--neon);
+  text-shadow:0 0 18px rgba(0,255,170,0.4);
+}
+.deposit-amount-card .sub{
+  color:var(--ink-mute);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;
+}
+.deposit-meta-row{
+  display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;
+}
+.deposit-actions{
+  display:flex;align-items:center;gap:14px;margin-top:20px;flex-wrap:wrap;
+  border-top:1px dashed var(--line);padding-top:18px;
+}
+.deposit-hint{
+  color:var(--ink-mute);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;
+}
+
+/* Deposit modal */
+.deposit-modal{
+  background:var(--panel);
+  border:1px solid var(--neon);
+  box-shadow:0 0 0 1px rgba(0,255,170,0.1), 0 30px 80px -20px rgba(0,0,0,0.8);
+  padding:24px;max-width:520px;width:100%;
+  display:flex;flex-direction:column;gap:18px;
+  position:relative;
+}
+.deposit-modal::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(0,255,170,0.04),transparent 40%);
+}
+.deposit-modal-head{
+  display:flex;justify-content:space-between;align-items:center;
+}
+.deposit-steps{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  font-family:var(--mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;
+  color:var(--ink-mute);
+  border:1px dashed var(--line);padding:10px 14px;background:rgba(0,0,0,0.3);
+}
+.deposit-steps .step.active{color:var(--neon);text-shadow:0 0 10px rgba(0,255,170,0.4)}
+.deposit-steps .sep{color:var(--line)}
+
+.deposit-summary{
+  display:flex;flex-direction:column;border:1px solid var(--line);
+  background:rgba(0,0,0,0.3);
+}
+.deposit-summary .row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 14px;border-bottom:1px dashed var(--line);font-size:13px;
+}
+.deposit-summary .row:last-child{border-bottom:none}
+.deposit-summary .row span{color:var(--ink-mute);font-size:11px;letter-spacing:0.12em;text-transform:uppercase}
+.deposit-summary .row b{color:var(--ink);font-family:var(--mono);font-size:13px}
+.deposit-summary .row b.mono{font-family:var(--mono)}
+.deposit-summary .row.total{
+  background:rgba(0,255,170,0.06);
+}
+.deposit-summary .row.total b{color:var(--neon);font-family:var(--display);font-size:18px}
+
+.deposit-disclaimer{
+  color:var(--ink-mute);font-size:12px;line-height:1.6;margin:0;
+  border-left:2px solid var(--neon);padding-left:12px;
+}
+
+.deposit-progress{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:24px 8px;text-align:center;
+}
+.deposit-progress-title{
+  font-family:var(--display);font-size:18px;color:var(--ink);margin-top:6px;
+}
+.deposit-progress-sub{
+  color:var(--ink-mute);font-size:13px;line-height:1.5;max-width:380px;
+}
+.spinner{
+  width:42px;height:42px;border-radius:50%;
+  border:2px solid rgba(0,255,170,0.15);border-top-color:var(--neon);
+  animation:spin 0.9s linear infinite;
+  box-shadow:0 0 20px rgba(0,255,170,0.3);
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.deposit-success{
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:14px 8px;text-align:center;
+}
+.ok-badge{
+  width:54px;height:54px;border-radius:50%;
+  background:linear-gradient(135deg,var(--neon),var(--neon-2));color:#000;
+  display:grid;place-items:center;font-size:26px;font-weight:700;
+  box-shadow:0 0 30px rgba(0,255,170,0.5);
+}
+.err-badge{
+  width:54px;height:54px;border-radius:50%;
+  background:rgba(255,80,80,0.15);color:var(--red,#ff5050);border:1px solid var(--red,#ff5050);
+  display:grid;place-items:center;font-size:28px;font-weight:700;
+  box-shadow:0 0 24px rgba(255,80,80,0.3);
+}
+.deposit-tx{
+  display:flex;flex-direction:column;gap:4px;align-items:center;
+  border:1px dashed var(--line);padding:10px 14px;background:rgba(0,0,0,0.3);
+}
+.deposit-tx code{font-size:12px;color:var(--neon);letter-spacing:0.05em}
