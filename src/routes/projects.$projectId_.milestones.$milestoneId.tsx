@@ -1005,3 +1005,105 @@ function MilestoneDetailPage() {
     </div>
   );
 }
+
+function ActiveMilestoneBand({
+  endDate,
+  amount,
+  fundedAt,
+}: {
+  endDate: string | null;
+  amount: string;
+  fundedAt: string | null;
+}) {
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const endMs = endDate ? new Date(endDate).getTime() : null;
+  const totalRemaining = endMs ? endMs - now : null;
+  const overdue = totalRemaining !== null && totalRemaining < 0;
+  const absRemaining = totalRemaining === null ? 0 : Math.abs(totalRemaining);
+
+  const days = Math.floor(absRemaining / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((absRemaining / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((absRemaining / (1000 * 60)) % 60);
+  const seconds = Math.floor((absRemaining / 1000) % 60);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  // Progress bar: how much of the funded → endDate window has elapsed.
+  const startMs = fundedAt ? new Date(fundedAt).getTime() : null;
+  let pct = 0;
+  if (startMs && endMs && endMs > startMs) {
+    pct = Math.min(100, Math.max(0, ((now - startMs) / (endMs - startMs)) * 100));
+  }
+
+  const tone = overdue ? "overdue" : days < 1 ? "warn" : "ok";
+
+  return (
+    <div className={"active-band " + tone} style={{ marginTop: 32 }}>
+      <div className="active-band-head">
+        <div>
+          <div className="form-label" style={{ fontSize: 13 }}>
+            ▸ Milestone active · escrow live
+          </div>
+          <h3 className="active-title">
+            {overdue ? "Delivery window overdue" : "Time remaining to deliver"}
+          </h3>
+          <p className="active-sub">
+            ◎ {amount} SOL is locked in escrow. The provider must ship the codebase &amp; spec
+            before the deadline to claim the funds.
+          </p>
+        </div>
+        <div className="countdown">
+          {endDate ? (
+            <>
+              <div className="cd-grid">
+                <div className="cd-cell">
+                  <span className="n">{pad(days)}</span>
+                  <span className="u">days</span>
+                </div>
+                <span className="sep">:</span>
+                <div className="cd-cell">
+                  <span className="n">{pad(hours)}</span>
+                  <span className="u">hrs</span>
+                </div>
+                <span className="sep">:</span>
+                <div className="cd-cell">
+                  <span className="n">{pad(minutes)}</span>
+                  <span className="u">min</span>
+                </div>
+                <span className="sep">:</span>
+                <div className="cd-cell">
+                  <span className="n">{pad(seconds)}</span>
+                  <span className="u">sec</span>
+                </div>
+              </div>
+              <div className="cd-target">
+                {overdue ? "overdue since " : "target "}
+                {fmtDateTime(endDate)}
+              </div>
+            </>
+          ) : (
+            <div className="cd-target">No end date set</div>
+          )}
+        </div>
+      </div>
+      {endDate && (
+        <div className="active-progress" aria-hidden>
+          <div className="bar">
+            <i style={{ width: `${pct}%` }} />
+          </div>
+          <div className="bar-meta">
+            <span>funded {fundedAt ? fmtDateTime(fundedAt) : "—"}</span>
+            <span>{overdue ? "100%+" : `${Math.round(pct)}% elapsed`}</span>
+            <span>deadline {fmtDateTime(endDate)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
