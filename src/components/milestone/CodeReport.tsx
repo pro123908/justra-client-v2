@@ -551,7 +551,7 @@ function TerminalLine({ children, delay }: { children: React.ReactNode; delay: n
 }
 
 /* ---------------- main exported component ---------------- */
-export default function CodeReport() {
+export default function CodeReport({ milestoneId }: { milestoneId: string }) {
   const [codebase, setCodebase] = useState<File | null>(null);
   const [codebaseAnimKey, setCodebaseAnimKey] = useState(0);
   const [codebaseAnimating, setCodebaseAnimating] = useState(false);
@@ -604,6 +604,7 @@ export default function CodeReport() {
 
     try {
       const form = new FormData();
+      form.append("milestoneId", milestoneId);
       form.append("codebase", codebase);
 
       const res = await fetch("http://localhost:3000/analyze", {

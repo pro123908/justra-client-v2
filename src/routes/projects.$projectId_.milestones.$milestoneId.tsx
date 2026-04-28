@@ -611,7 +611,7 @@ function MilestoneDetailPage() {
                 Provider workflow · escrow released on consensus
               </span>
             </div>
-            <CodeReport />
+            <CodeReport milestoneId={milestoneId} />
           </div>
         )}
 
