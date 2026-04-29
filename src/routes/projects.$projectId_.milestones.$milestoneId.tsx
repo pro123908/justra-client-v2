@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
 import {
@@ -8,8 +9,11 @@ import {
   type MilestoneResponse,
   type MilestoneFileResponse,
 } from "@/lib/api";
+import { initializeMilestone, solToLamports, sha256 } from "@/lib/solana";
 import CodeReport from "@/components/milestone/CodeReport";
 import "@/components/git-escrow.css";
+
+const PLATFORM_FEE_BPS = 250;
 
 export const Route = createFileRoute("/projects/$projectId_/milestones/$milestoneId")({
   component: MilestoneDetailPage,
@@ -97,12 +101,6 @@ function MilestoneDetailPage() {
   const [rejectNote, setRejectNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
-
-  // specs modal
-  const [specsOpen, setSpecsOpen] = useState(false);
-  const [specsContent, setSpecsContent] = useState<string | null>(null);
-  const [specsLoading, setSpecsLoading] = useState(false);
-  const [specsError, setSpecsError] = useState("");
 
   // milestone files
   const [files, setFiles] = useState<MilestoneFileResponse[]>([]);
@@ -204,32 +202,22 @@ function MilestoneDetailPage() {
 
   const handleConfirmDeposit = async () => {
     setDepositError("");
-    setDepositStep("signing");
     try {
-      const w = window as unknown as {
-        solana?: {
-          signMessage?: (msg: Uint8Array, enc: "utf8") => Promise<{ signature: Uint8Array }>;
-        };
-        phantom?: {
-          solana?: {
-            signMessage?: (msg: Uint8Array, enc: "utf8") => Promise<{ signature: Uint8Array }>;
-          };
-        };
-      };
-      const phantom = w.phantom?.solana ?? w.solana;
-      if (!phantom?.signMessage)
-        throw new Error("Phantom wallet not detected. Please reconnect your wallet.");
-
-      const payload = `git-escrow:deposit\nmilestone=${milestone.id}\namount=${milestone.amount}\npda=${milestone.pda ?? "n/a"}\nts=${Date.now()}`;
-      const encoded = new TextEncoder().encode(payload);
-      const { signature } = await phantom.signMessage(encoded, "utf8");
+      let sig = depositTxSig;
+      if (!sig) {
+        setDepositStep("signing");
+        const requirementsHash = await sha256(files.map((f) => f.text).join(""));
+        sig = await initializeMilestone({
+          milestoneId: milestone.id,
+          amountLamports: solToLamports(parseFloat(milestone.amount)),
+          requirementsHash,
+          feeBps: PLATFORM_FEE_BPS,
+          provider: new PublicKey(milestone.provider.publicKey),
+        });
+        setDepositTxSig(sig);
+      }
 
       setDepositStep("broadcasting");
-
-      let hex = "";
-      for (const b of signature.slice(0, 32)) hex += b.toString(16).padStart(2, "0");
-      setDepositTxSig(hex);
-
       const updated = await milestoneApi.fund(token!, milestoneId);
       setMilestone(updated);
       setDepositStep("success");
@@ -296,25 +284,6 @@ function MilestoneDetailPage() {
       setActionError(e instanceof Error ? e.message : "Failed to accept milestone.");
     } finally {
       setActionLoading(false);
-    }
-  };
-
-  const handleViewSpecs = async () => {
-    if (!milestone.specCid) return;
-    setSpecsOpen(true);
-    setSpecsContent(null);
-    setSpecsError("");
-    setSpecsLoading(true);
-    try {
-      const { url } = await milestoneApi.getPinataGatewayUrl(token!);
-      const res = await fetch(`${url}/${milestone.specCid}`);
-      if (!res.ok) throw new Error(`Failed to fetch spec: ${res.status}`);
-      const { content } = await res.json();
-      setSpecsContent(content);
-    } catch (e) {
-      setSpecsError(e instanceof Error ? e.message : "Failed to load spec content.");
-    } finally {
-      setSpecsLoading(false);
     }
   };
 
@@ -484,21 +453,6 @@ function MilestoneDetailPage() {
 
           {/* Technical fields */}
           <div className="ms-detail-grid two" style={{ marginTop: 18 }}>
-            <div className="ms-cell mono-cell">
-              <div className="form-label">▸ Spec CID</div>
-              <div className="ms-mono" title={milestone.specCid || ""}>
-                {milestone.specCid ? truncMiddle(milestone.specCid, 10, 8) : "— not pinned"}
-              </div>
-              {milestone.specCid && (
-                <button
-                  className="btn"
-                  style={{ marginTop: 8, fontSize: 12 }}
-                  onClick={handleViewSpecs}
-                >
-                  Milestone Specs
-                </button>
-              )}
-            </div>
             <div className="ms-cell mono-cell">
               <div className="form-label">▸ Escrow PDA</div>
               <div className="ms-mono" title={milestone.pda || ""}>
@@ -756,63 +710,6 @@ function MilestoneDetailPage() {
                 }}
               >
                 {fileViewContent}
-              </pre>
-            )}
-          </div>
-        </div>
-      )}
-
-      {specsOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => setSpecsOpen(false)}
-        >
-          <div
-            style={{
-              background: "var(--panel)",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              padding: 24,
-              maxWidth: 700,
-              width: "90%",
-              maxHeight: "80vh",
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div className="form-label" style={{ fontSize: 13 }}>
-                ▸ Milestone Specs
-              </div>
-              <button className="btn" style={{ fontSize: 12 }} onClick={() => setSpecsOpen(false)}>
-                Close
-              </button>
-            </div>
-            {specsLoading && <div style={{ color: "var(--muted)" }}>Loading…</div>}
-            {specsError && <div className="auth-error">{specsError}</div>}
-            {specsContent !== null && !specsLoading && (
-              <pre
-                style={{
-                  overflow: "auto",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontFamily: "var(--font-mono, monospace)",
-                  fontSize: 13,
-                  color: "var(--fg)",
-                  margin: 0,
-                }}
-              >
-                {specsContent}
               </pre>
             )}
           </div>

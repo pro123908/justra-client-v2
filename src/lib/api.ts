@@ -146,7 +146,6 @@ export type MilestoneResponse = {
   title: string;
   description: string;
   amount: string;
-  specCid: string;
   startDate: string | null;
   endDate: string | null;
   status: MilestoneStatus;

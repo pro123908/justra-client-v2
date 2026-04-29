@@ -1,3 +1,6 @@
+import { Buffer } from "buffer";
+if (typeof window !== "undefined") window.Buffer = Buffer;
+
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";

@@ -1,0 +1,398 @@
+{
+  "address": "GUndCD7drNPXK8ZTTvAey79Fcnv19PVfTt4ydAM9uKry",
+  "metadata": {
+    "name": "git_escrow",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "dispute",
+      "docs": ["Provider freezes the milestone for arbitration; funds remain locked."],
+      "discriminator": [216, 92, 128, 146, 202, 85, 135, 73],
+      "accounts": [
+        {
+          "name": "provider",
+          "docs": ["Provider raises the dispute"],
+          "signer": true,
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "consumer",
+          "docs": ["Consumer is not a signer here but is needed as a PDA seed"],
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "milestone_pda",
+          "docs": ["Milestone PDA — funds remain locked; only status changes"],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 105, 108, 101, 115, 116, 111, 110, 101]
+              },
+              {
+                "kind": "account",
+                "path": "consumer"
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "milestone_pda.milestone_id",
+                "account": "Milestone"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_milestone",
+      "docs": ["Consumer locks SOL into a new milestone escrow."],
+      "discriminator": [142, 73, 5, 208, 226, 196, 205, 113],
+      "accounts": [
+        {
+          "name": "consumer",
+          "docs": ["Consumer funds the milestone and is the sole authority to release or refund"],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "provider",
+          "docs": ["Provider who will receive funds on approval."]
+        },
+        {
+          "name": "milestone_pda",
+          "docs": ["Milestone PDA — holds escrow state and the locked SOL"],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 105, 108, 101, 115, 116, 111, 110, 101]
+              },
+              {
+                "kind": "account",
+                "path": "consumer"
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "arg",
+                "path": "milestone_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "milestone_id",
+          "type": "string"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "requirements_hash",
+          "type": {
+            "array": ["u8", 32]
+          }
+        },
+        {
+          "name": "platform_fee_basis_points",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "refund",
+      "docs": ["Consumer rejects work; full amount is returned to the consumer."],
+      "discriminator": [2, 96, 183, 251, 63, 208, 46, 46],
+      "accounts": [
+        {
+          "name": "consumer",
+          "docs": ["Consumer receives the full refund and must authorise this instruction"],
+          "writable": true,
+          "signer": true,
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "milestone_pda",
+          "docs": [
+            "Milestone PDA — seeds enforce ownership; consumer is both signer and recipient"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 105, 108, 101, 115, 116, 111, 110, 101]
+              },
+              {
+                "kind": "account",
+                "path": "consumer"
+              },
+              {
+                "kind": "account",
+                "path": "milestone_pda.provider",
+                "account": "Milestone"
+              },
+              {
+                "kind": "account",
+                "path": "milestone_pda.milestone_id",
+                "account": "Milestone"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "release_funds",
+      "docs": ["Consumer approves completed work; funds flow to provider (minus platform fee)."],
+      "discriminator": [225, 88, 91, 108, 126, 52, 2, 26],
+      "accounts": [
+        {
+          "name": "consumer",
+          "docs": ["Consumer must authorise the release"],
+          "signer": true,
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "provider",
+          "docs": ["Provider receives the net payout after the platform fee"],
+          "writable": true,
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "platform_wallet",
+          "docs": ["Hardcoded platform wallet receives the fee"],
+          "writable": true,
+          "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+        },
+        {
+          "name": "milestone_pda",
+          "docs": [
+            "Milestone PDA — seeds enforce that this PDA belongs to this consumer/provider pair"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 105, 108, 101, 115, 116, 111, 110, 101]
+              },
+              {
+                "kind": "account",
+                "path": "consumer"
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "milestone_pda.milestone_id",
+                "account": "Milestone"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolve_dispute",
+      "docs": [
+        "Hardcoded arbitrator splits the locked funds according to provider_percentage (0–100)."
+      ],
+      "discriminator": [231, 6, 202, 6, 96, 103, 12, 230],
+      "accounts": [
+        {
+          "name": "arbitrator",
+          "docs": ["Only the hardcoded arbitrator may call this instruction"],
+          "signer": true,
+          "address": "9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
+        },
+        {
+          "name": "consumer",
+          "docs": ["Consumer receives their share of the funds (if any)"],
+          "writable": true,
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "provider",
+          "docs": ["Provider receives their share of the funds (if any)"],
+          "writable": true,
+          "relations": ["milestone_pda"]
+        },
+        {
+          "name": "platform_wallet",
+          "docs": ["Platform wallet receives its fee on the provider's portion"],
+          "writable": true,
+          "address": "AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+        },
+        {
+          "name": "milestone_pda",
+          "docs": ["Milestone PDA — must currently be in Disputed status"],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 105, 108, 101, 115, 116, 111, 110, 101]
+              },
+              {
+                "kind": "account",
+                "path": "consumer"
+              },
+              {
+                "kind": "account",
+                "path": "provider"
+              },
+              {
+                "kind": "account",
+                "path": "milestone_pda.milestone_id",
+                "account": "Milestone"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "provider_percentage",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Milestone",
+      "discriminator": [38, 210, 239, 177, 85, 184, 10, 44]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "UnauthorizedCaller",
+      "msg": "Caller is not authorized to perform this action"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidStatus",
+      "msg": "Milestone is not in the required status for this action"
+    },
+    {
+      "code": 6002,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient funds in the milestone escrow"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidPercentage",
+      "msg": "Provider percentage must be between 0 and 100"
+    },
+    {
+      "code": 6004,
+      "name": "MilestoneIdTooLong",
+      "msg": "Milestone ID exceeds maximum allowed length"
+    }
+  ],
+  "types": [
+    {
+      "name": "Milestone",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "milestone_id",
+            "type": "string"
+          },
+          {
+            "name": "consumer",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "requirements_hash",
+            "type": {
+              "array": ["u8", 32]
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "MilestoneStatus"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "platform_fee_basis_points",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MilestoneStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Released"
+          },
+          {
+            "name": "Refunded"
+          },
+          {
+            "name": "Disputed"
+          }
+        ]
+      }
+    }
+  ]
+}
