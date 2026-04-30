@@ -1,37 +1,66 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  analysisApi,
+  type AnalysisResult,
+  type ReviewResult,
+  type StoredAnalysisResult,
+} from "@/lib/api";
 import "@/components/git-escrow.css";
 
 /* ---------------- helpers ---------------- */
 const fmtBytes = (b: number) => {
-  if (b < 1024) return b + " B";
-  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
-  return (b / 1024 / 1024).toFixed(2) + " MB";
-};
-const ext = (n: string) => (n.split(".").pop() || "").toUpperCase().slice(0, 4);
-
-/* ---------------- API types ---------------- */
-type RequirementResult = {
-  id: string;
-  requirement: string;
-  category: string;
-  status: "pass" | "partial" | "fail";
-  confidence: number;
-  reason: string;
-  evidence: string;
-  relevantFiles: string[];
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / 1024 / 1024).toFixed(2)} MB`;
 };
 
-type AnalysisResponse = {
-  summary: {
-    overallScore: number;
-    totalRequirements: number;
-    passed: number;
-    partial: number;
-    failed: number;
-    codeFilesAnalyzed: number;
-    codeChunksIndexed: number;
+const fmtDateTime = (value?: string | null) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date
+    .toLocaleString(undefined, {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+    .toUpperCase();
+};
+
+const fmtCount = (value?: number | null) => (value ?? 0).toLocaleString();
+
+const ext = (name: string) => (name.split(".").pop() || "").toUpperCase().slice(0, 4);
+
+const sortAnalyses = (items: StoredAnalysisResult[]) =>
+  [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+const materializeFallbackAnalysis = (
+  milestoneId: string,
+  analysis: AnalysisResult,
+): StoredAnalysisResult => {
+  const now = new Date().toISOString();
+  return {
+    ...analysis,
+    id: crypto.randomUUID(),
+    milestoneId,
+    createdAt: now,
+    updatedAt: now,
   };
-  requirements: RequirementResult[];
+};
+
+const getVerdictLabel = (score: number) => {
+  if (score >= 90) return "PASS · HIGH CONFIDENCE";
+  if (score >= 75) return "PASS · MAJORITY";
+  if (score >= 60) return "CONTESTED";
+  return "FAIL";
+};
+
+const getScoreTone = (score: number) => {
+  if (score >= 85) return "#22c55e";
+  if (score >= 65) return "#eab308";
+  return "#ef4444";
 };
 
 /* ---------------- file row ---------------- */
@@ -49,18 +78,18 @@ function FileRow({
 
   useEffect(() => {
     if (!uploading) return;
-    let p = 0;
+    let progress = 0;
     const iv = setInterval(() => {
-      p += Math.random() * 14 + 6;
+      progress += Math.random() * 14 + 6;
       const bar = barRef.current;
       if (!bar) return;
-      if (p >= 100) {
-        p = 100;
+      if (progress >= 100) {
+        progress = 100;
         bar.style.width = "100%";
         clearInterval(iv);
         setTimeout(() => setShow(false), 300);
       } else {
-        bar.style.width = p + "%";
+        bar.style.width = `${progress}%`;
       }
     }, 140);
     return () => clearInterval(iv);
@@ -97,6 +126,7 @@ function Modal({
   children,
   footer,
   loading,
+  size = "default",
 }: {
   open: boolean;
   onClose?: () => void;
@@ -105,6 +135,7 @@ function Modal({
   children?: React.ReactNode;
   footer?: React.ReactNode;
   loading?: boolean;
+  size?: "default" | "wide";
 }) {
   useEffect(() => {
     if (!open || loading || !onClose) return;
@@ -123,7 +154,11 @@ function Modal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className={"modal" + (loading ? " loading-modal" : "")}>
+      <div
+        className={
+          "modal" + (loading ? " loading-modal" : "") + (size === "wide" ? " modal-wide" : "")
+        }
+      >
         {!loading && (
           <div className="modal-head">
             <div>
@@ -243,14 +278,19 @@ function LoadingModal({
   );
 }
 
-/* ---------------- analysis report ---------------- */
-function StatusBadge({ status }: { status: "pass" | "partial" | "fail" }) {
-  const colors: Record<string, string> = {
+/* ---------------- analysis UI ---------------- */
+function StatusBadge({ status }: { status: ReviewResult["status"] }) {
+  const colors: Record<ReviewResult["status"], string> = {
     pass: "#22c55e",
     partial: "#eab308",
     fail: "#ef4444",
   };
-  const labels = { pass: "PASS", partial: "PARTIAL", fail: "FAIL" };
+  const labels: Record<ReviewResult["status"], string> = {
+    pass: "PASS",
+    partial: "PARTIAL",
+    fail: "FAIL",
+  };
+
   return (
     <span
       style={{
@@ -260,7 +300,7 @@ function StatusBadge({ status }: { status: "pass" | "partial" | "fail" }) {
         fontSize: 11,
         fontWeight: 700,
         letterSpacing: "0.08em",
-        backgroundColor: colors[status] + "22",
+        backgroundColor: `${colors[status]}22`,
         color: colors[status],
         border: `1px solid ${colors[status]}44`,
         fontFamily: "var(--display)",
@@ -271,277 +311,14 @@ function StatusBadge({ status }: { status: "pass" | "partial" | "fail" }) {
   );
 }
 
-function AnalysisReport({ data }: { data: AnalysisResponse }) {
-  const { summary, requirements } = data;
-  const circ = 2 * Math.PI * 108;
-  const ringRef = useRef<SVGCircleElement>(null);
-  const numRef = useRef<HTMLDivElement>(null);
-  const sectionRef = useRef<HTMLElement>(null);
-  const [show, setShow] = useState(false);
-  const [filter, setFilter] = useState<"all" | "pass" | "partial" | "fail">("all");
-
-  useEffect(() => {
-    requestAnimationFrame(() => setShow(true));
-
-    setTimeout(() => {
-      const ring = ringRef.current;
-      if (ring)
-        ring.setAttribute("stroke-dashoffset", String(circ * (1 - summary.overallScore / 100)));
-    }, 80);
-
-    const num = numRef.current;
-    if (num) {
-      const dur = 1600;
-      const start = performance.now();
-      const step = (t: number) => {
-        const k = Math.min(1, (t - start) / dur);
-        const eased = 1 - Math.pow(1 - k, 3);
-        num.textContent = String(Math.round(summary.overallScore * eased));
-        if (k < 1) requestAnimationFrame(step);
-        else num.textContent = String(summary.overallScore);
-      };
-      requestAnimationFrame(step);
-    }
-
-    setTimeout(() => {
-      const r = sectionRef.current;
-      if (!r) return;
-      const y = r.getBoundingClientRect().top + window.scrollY - 40;
-      window.scrollTo(0, y);
-    }, 200);
-  }, [data, circ, summary.overallScore]);
-
-  const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
-  const grade =
-    summary.overallScore >= 90
-      ? "PASS · HIGH CONFIDENCE"
-      : summary.overallScore >= 75
-        ? "PASS · MAJORITY"
-        : summary.overallScore >= 60
-          ? "CONTESTED"
-          : "FAIL";
-
-  const filtered =
-    filter === "all" ? requirements : requirements.filter((r) => r.status === filter);
-
-  return (
-    <section className={"report" + (show ? " show" : "")} ref={sectionRef}>
-      <div className="report-head">
-        <div className="tt">
-          <span style={{ fontFamily: "var(--display)", fontWeight: 700 }}>▸</span> ANALYSIS REPORT
-        </div>
-        <div className="ts">{ts} UTC</div>
-        <div className="verdict-stamp">{grade}</div>
-      </div>
-
-      <div className="report-body">
-        <div className="score-pane">
-          <div className="score-label">Overall Score</div>
-          <div className="score-ring">
-            <svg viewBox="0 0 240 240">
-              <circle className="track" cx={120} cy={120} r={108} />
-              <circle
-                className="fill"
-                cx={120}
-                cy={120}
-                r={108}
-                strokeDasharray={circ}
-                strokeDashoffset={circ}
-                ref={ringRef}
-              />
-            </svg>
-            <div className="score-center">
-              <div className="score-num" ref={numRef}>
-                0
-              </div>
-              <div className="score-den">/ 100</div>
-              <div className="score-grade">{grade.split(" · ")[0]}</div>
-            </div>
-          </div>
-          <div className="score-confidence">
-            {summary.totalRequirements} requirements &nbsp;·&nbsp; {summary.codeFilesAnalyzed} files
-          </div>
-        </div>
-
-        <div className="report-main">
-          <h2>Requirement Analysis Complete</h2>
-          <div className="summary-meta">
-            <span>
-              <b style={{ color: "#22c55e" }}>{summary.passed}</b> passed
-            </span>
-            <span>
-              <b style={{ color: "#eab308" }}>{summary.partial}</b> partial
-            </span>
-            <span>
-              <b style={{ color: "#ef4444" }}>{summary.failed}</b> failed
-            </span>
-            <span>{summary.codeFilesAnalyzed} files analyzed</span>
-            <span>{summary.codeChunksIndexed} chunks indexed</span>
-          </div>
-
-          <div className="section-h" style={{ marginTop: 24, marginBottom: 12 }}>
-            <span>▸ REQUIREMENTS BREAKDOWN</span>
-            <span style={{ display: "flex", gap: 8 }}>
-              {(["all", "pass", "partial", "fail"] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  style={{
-                    background: filter === f ? "var(--ink)" : "transparent",
-                    color: filter === f ? "var(--bg)" : "var(--ink-dim)",
-                    border: "1px solid var(--line)",
-                    borderRadius: 4,
-                    padding: "2px 10px",
-                    fontSize: 11,
-                    fontFamily: "var(--display)",
-                    fontWeight: 600,
-                    letterSpacing: "0.08em",
-                    cursor: "pointer",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {f}
-                </button>
-              ))}
-            </span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtered.map((req) => (
-              <div
-                key={req.id}
-                style={{
-                  border: "1px solid var(--line)",
-                  borderRadius: 6,
-                  padding: "14px 16px",
-                  background: "var(--panel)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    marginBottom: 8,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <span
-                      style={{
-                        fontFamily: "var(--display)",
-                        fontWeight: 700,
-                        fontSize: 12,
-                        color: "var(--ink-dim)",
-                      }}
-                    >
-                      {req.id}
-                    </span>
-                    <StatusBadge status={req.status} />
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: "var(--ink-mute)",
-                        fontFamily: "var(--display)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      {req.category}
-                    </span>
-                  </div>
-                  <span
-                    style={{
-                      fontFamily: "var(--display)",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      color:
-                        req.confidence >= 80
-                          ? "#22c55e"
-                          : req.confidence >= 60
-                            ? "#eab308"
-                            : "#ef4444",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {req.confidence}% conf.
-                  </span>
-                </div>
-
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "var(--ink)",
-                    marginBottom: 8,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {req.requirement}
-                </p>
-
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "var(--ink-dim)",
-                    marginBottom: req.relevantFiles.length ? 8 : 0,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {req.reason}
-                </p>
-
-                {req.relevantFiles.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {req.relevantFiles.map((f) => (
-                      <code
-                        key={f}
-                        style={{
-                          fontSize: 11,
-                          background: "var(--bg)",
-                          border: "1px solid var(--line)",
-                          borderRadius: 3,
-                          padding: "1px 6px",
-                          color: "var(--ink-dim)",
-                        }}
-                      >
-                        {f}
-                      </code>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="report-foot">
-        <div className="hashes">
-          <span>
-            <b>TOTAL</b> {summary.totalRequirements} requirements
-          </span>
-          <span>
-            <b>FILES</b> {summary.codeFilesAnalyzed} analyzed
-          </span>
-          <span>
-            <b>CHUNKS</b> {summary.codeChunksIndexed} indexed
-          </span>
-        </div>
-        <div className="actions">
-          <button className="btn">Download Report · PDF</button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------------- terminal line ---------------- */
 function TerminalLine({ children, delay }: { children: React.ReactNode; delay: number }) {
   const [visible, setVisible] = useState(false);
+
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), delay);
     return () => clearTimeout(t);
   }, [delay]);
+
   return (
     <div className={"term-line" + (visible ? " show" : "")}>
       <span className="term-prompt">▸</span>
@@ -550,15 +327,163 @@ function TerminalLine({ children, delay }: { children: React.ReactNode; delay: n
   );
 }
 
+function RequirementBreakdown({ requirements }: { requirements: ReviewResult[] }) {
+  const [filter, setFilter] = useState<"all" | ReviewResult["status"]>("all");
+
+  const filtered =
+    filter === "all"
+      ? requirements
+      : requirements.filter((requirement) => requirement.status === filter);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="section-h" style={{ marginBottom: 0 }}>
+        <span>▸ REQUIREMENTS BREAKDOWN</span>
+        <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(["all", "pass", "partial", "fail"] as const).map((value) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              style={{
+                background: filter === value ? "var(--ink)" : "transparent",
+                color: filter === value ? "var(--bg)" : "var(--ink-dim)",
+                border: "1px solid var(--line)",
+                borderRadius: 4,
+                padding: "2px 10px",
+                fontSize: 11,
+                fontFamily: "var(--display)",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                cursor: "pointer",
+                textTransform: "uppercase",
+              }}
+            >
+              {value}
+            </button>
+          ))}
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="analysis-empty">No requirements match this filter.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map((requirement) => (
+            <div key={requirement.id} className="analysis-requirement">
+              <div className="analysis-requirement-head">
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span className="analysis-req-id">{requirement.id}</span>
+                  <StatusBadge status={requirement.status} />
+                  <span className="analysis-req-category">{requirement.category}</span>
+                </div>
+                <span
+                  style={{
+                    fontFamily: "var(--display)",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: getScoreTone(requirement.confidence),
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {Math.round(requirement.confidence)}% conf.
+                </span>
+              </div>
+
+              <p className="analysis-req-text">{requirement.requirement}</p>
+              <p className="analysis-req-copy">{requirement.reason}</p>
+
+              {requirement.evidence && (
+                <div className="analysis-evidence">
+                  <div className="analysis-evidence-label">Evidence</div>
+                  <p className="analysis-req-copy" style={{ marginBottom: 0 }}>
+                    {requirement.evidence}
+                  </p>
+                </div>
+              )}
+
+              {requirement.relevantFiles.length > 0 && (
+                <div className="analysis-file-chips">
+                  {requirement.relevantFiles.map((file) => (
+                    <code key={file}>{file}</code>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalysisDetails({ analysis }: { analysis: StoredAnalysisResult }) {
+  const { summary } = analysis;
+  const roundedScore = Math.round(summary.overallScore);
+  const verdict = getVerdictLabel(roundedScore);
+
+  return (
+    <div className="analysis-details">
+      <div className="analysis-modal-head">
+        <div>
+          <div className="analysis-modal-title">Stored milestone analysis</div>
+          <div className="analysis-modal-meta">
+            Created {fmtDateTime(analysis.createdAt)} · Updated {fmtDateTime(analysis.updatedAt)}
+          </div>
+        </div>
+        <div
+          className="analysis-score-pill"
+          style={{
+            color: getScoreTone(roundedScore),
+            borderColor: `${getScoreTone(roundedScore)}55`,
+            background: `${getScoreTone(roundedScore)}14`,
+          }}
+        >
+          {roundedScore}/100 · {verdict}
+        </div>
+      </div>
+
+      <div className="analysis-summary-grid">
+        {[
+          { label: "Requirements", value: fmtCount(summary.totalRequirements) },
+          { label: "Passed", value: fmtCount(summary.passed), tone: "#22c55e" },
+          { label: "Partial", value: fmtCount(summary.partial), tone: "#eab308" },
+          { label: "Failed", value: fmtCount(summary.failed), tone: "#ef4444" },
+          { label: "Files analyzed", value: fmtCount(summary.codeFilesAnalyzed) },
+          { label: "Chunks indexed", value: fmtCount(summary.codeChunksIndexed) },
+          { label: "OpenAI tokens", value: fmtCount(summary.totalOpenAITokens ?? 0) },
+        ].map((item) => (
+          <div key={item.label} className="analysis-metric-card">
+            <div className="analysis-metric-label">{item.label}</div>
+            <div className="analysis-metric-value" style={{ color: item.tone ?? "var(--ink)" }}>
+              {item.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <RequirementBreakdown key={analysis.id} requirements={analysis.requirements} />
+    </div>
+  );
+}
+
 /* ---------------- main exported component ---------------- */
-export default function CodeReport({ milestoneId }: { milestoneId: string }) {
+export default function CodeReport({
+  milestoneId,
+  githubRepo,
+  token,
+  onReleaseFunds,
+}: {
+  milestoneId: string;
+  githubRepo: string | null;
+  token: string | null;
+  onReleaseFunds: () => Promise<void>;
+}) {
+  const [sourceMode, setSourceMode] = useState<"zip" | "github">(githubRepo ? "github" : "zip");
   const [codebase, setCodebase] = useState<File | null>(null);
-  const [codebaseAnimKey, setCodebaseAnimKey] = useState(0);
-  const [codebaseAnimating, setCodebaseAnimating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [modal1, setModal1] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [stagedCodebase, setStagedCodebase] = useState<File | null>(null);
 
   const [loadingOpen, setLoadingOpen] = useState(false);
@@ -566,29 +491,57 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
   const [loadSub, setLoadSub] = useState("This will take approximately 30–120 seconds.");
   const [loadPct, setLoadPct] = useState(0);
 
-  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [analyses, setAnalyses] = useState<StoredAnalysisResult[]>([]);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisFetchError, setAnalysisFetchError] = useState<string | null>(null);
+  const [activeAnalysis, setActiveAnalysis] = useState<StoredAnalysisResult | null>(null);
 
-  const codebaseOk = !!codebase;
+  const [error, setError] = useState<string | null>(null);
+  const [releaseLoading, setReleaseLoading] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+
+  const codebaseOk = sourceMode === "github" ? !!githubRepo : !!codebase;
+  const hasAnalyses = analyses.length > 0;
 
   const attachFile = (file: File) => {
     setCodebase(file);
-    setCodebaseAnimating(true);
-    setCodebaseAnimKey((k) => k + 1);
-  };
-
-  const confirmCodebase = () => {
-    if (!stagedCodebase) return;
-    attachFile(stagedCodebase);
-    setModal1(false);
+    setUploadModalOpen(false);
     setStagedCodebase(null);
   };
 
-  const runAnalysis = async () => {
-    if (!codebase) return;
+  const refreshAnalyses = async (showSpinner = true): Promise<StoredAnalysisResult[]> => {
+    if (!token) return [];
+    if (showSpinner) setAnalysisLoading(true);
+    setAnalysisFetchError(null);
 
-    setAnalysis(null);
+    try {
+      const results = sortAnalyses(await analysisApi.listForMilestone(token, milestoneId));
+      setAnalyses(results);
+      return results;
+    } catch (err) {
+      setAnalysisFetchError(
+        err instanceof Error ? err.message : "Failed to load stored milestone analyses.",
+      );
+      return [];
+    } finally {
+      if (showSpinner) setAnalysisLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setSourceMode(githubRepo ? "github" : "zip");
+  }, [githubRepo]);
+
+  useEffect(() => {
+    if (!token) return;
+    void refreshAnalyses();
+  }, [token, milestoneId]);
+
+  const runAnalysis = async () => {
+    if (!codebaseOk) return;
+
     setError(null);
+    setReleaseError(null);
     setLoadingOpen(true);
     setLoadPct(0);
     setLoadTitle("Analyzing codebase");
@@ -603,28 +556,50 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
     }, 500);
 
     try {
-      const form = new FormData();
-      form.append("milestoneId", milestoneId);
-      form.append("codebase", codebase);
+      let response: Response;
 
-      const res = await fetch("http://localhost:3000/analyze", {
-        method: "POST",
-        body: form,
-      });
-
-      clearInterval(ticker);
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: "Request failed" }));
-        throw new Error(body.error || `Server error ${res.status}`);
+      if (sourceMode === "github" && githubRepo) {
+        response = await fetch("http://localhost:3000/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ milestoneId, githubRepo }),
+        });
+      } else {
+        const form = new FormData();
+        form.append("milestoneId", milestoneId);
+        form.append("codebase", codebase!);
+        response = await fetch("http://localhost:3000/analyze", {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: form,
+        });
       }
 
-      const data: AnalysisResponse = await res.json();
+      if (!response.ok) {
+        clearInterval(ticker);
+        const body = await response.json().catch(() => ({ error: "Request failed" }));
+        throw new Error(body.error || `Server error ${response.status}`);
+      }
+
+      const result: AnalysisResult = await response.json();
+      clearInterval(ticker);
       setLoadPct(100);
-      setTimeout(() => {
-        setLoadingOpen(false);
-        setAnalysis(data);
-      }, 600);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setLoadingOpen(false);
+
+      const storedResults = await refreshAnalyses(false);
+      if (storedResults.length > 0) {
+        setActiveAnalysis(storedResults[0]);
+        return;
+      }
+
+      const fallback = materializeFallbackAnalysis(milestoneId, result);
+      setAnalyses((current) => sortAnalyses([fallback, ...current]));
+      setActiveAnalysis(fallback);
+      setAnalysisFetchError("Analysis completed, but refreshing stored history failed.");
     } catch (err) {
       clearInterval(ticker);
       setLoadingOpen(false);
@@ -632,13 +607,16 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
     }
   };
 
+  const latestAnalysis = analyses[0] ?? null;
+
   return (
     <>
-      {/* ── Pipeline steps ── */}
       <div className="deliver-pipeline">
         <div className="pip-step active">
           <div className="pip-num">01</div>
-          <div className="pip-label">Upload Archive</div>
+          <div className="pip-label">
+            {sourceMode === "github" ? "GitHub Repo" : "Upload Archive"}
+          </div>
         </div>
         <div className="pip-connector">
           <div className="pip-connector-fill" style={{ width: codebaseOk ? "100%" : "0%" }} />
@@ -648,100 +626,177 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
           <div className="pip-label">AI Analysis</div>
         </div>
         <div className="pip-connector">
-          <div className="pip-connector-fill" style={{ width: "0%" }} />
+          <div className="pip-connector-fill" style={{ width: hasAnalyses ? "100%" : "0%" }} />
         </div>
-        <div className="pip-step">
+        <div className={"pip-step" + (hasAnalyses ? " active" : "")}>
           <div className="pip-num">03</div>
           <div className="pip-label">Release Escrow</div>
         </div>
       </div>
 
-      {/* ── Main delivery zone ── */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        <button
+          onClick={() => !githubRepo && setSourceMode("zip")}
+          style={{
+            flex: 1,
+            padding: "10px 16px",
+            border: `1px solid ${sourceMode === "zip" ? "var(--ink)" : "var(--line)"}`,
+            borderRadius: 6,
+            background: sourceMode === "zip" ? "var(--ink)" : "var(--panel)",
+            color: sourceMode === "zip" ? "var(--bg)" : "var(--ink-dim)",
+            fontFamily: "var(--display)",
+            fontWeight: 600,
+            fontSize: 12,
+            letterSpacing: "0.06em",
+            cursor: githubRepo ? "not-allowed" : "pointer",
+            opacity: githubRepo ? 0.4 : 1,
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+          disabled={!!githubRepo}
+          title={
+            githubRepo ? "GitHub repo is connected — disconnect it to use zip upload" : undefined
+          }
+        >
+          ⇪ Upload .zip Archive
+        </button>
+        <button
+          onClick={() => setSourceMode("github")}
+          style={{
+            flex: 1,
+            padding: "10px 16px",
+            border: `1px solid ${sourceMode === "github" ? "var(--ink)" : "var(--line)"}`,
+            borderRadius: 6,
+            background: sourceMode === "github" ? "var(--ink)" : "var(--panel)",
+            color:
+              sourceMode === "github" ? "var(--bg)" : githubRepo ? "var(--ink)" : "var(--ink-dim)",
+            fontFamily: "var(--display)",
+            fontWeight: 600,
+            fontSize: 12,
+            letterSpacing: "0.06em",
+            cursor: githubRepo ? "pointer" : "not-allowed",
+            opacity: githubRepo ? 1 : 0.4,
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+          disabled={!githubRepo}
+          title={!githubRepo ? "Connect a GitHub repo in the section above first" : undefined}
+        >
+          ◈ Use Connected GitHub Repo
+        </button>
+      </div>
+
       <div className="deliver-zone">
-        {/* Left: upload */}
         <div className="deliver-left">
-          <div
-            className={
-              "upload-target" + (codebaseOk ? " filled" : "") + (dragOver ? " drag-over" : "")
-            }
-            onClick={() => !codebaseOk && setModal1(true)}
-            onDragEnter={(e) => {
-              e.preventDefault();
-              if (!codebaseOk) setDragOver(true);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (!codebaseOk) setDragOver(true);
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const f = e.dataTransfer.files[0];
-              if (f) attachFile(f);
-            }}
-          >
-            <div className="ut-pulse-ring r1" />
-            <div className="ut-pulse-ring r2" />
-            <div className="ut-pulse-ring r3" />
-            <div className="ut-scan" />
-            {codebaseOk ? (
+          {sourceMode === "github" ? (
+            <div className="upload-target filled" style={{ cursor: "default" }}>
+              <div className="ut-pulse-ring r1" />
+              <div className="ut-pulse-ring r2" />
+              <div className="ut-pulse-ring r3" />
+              <div className="ut-scan" />
               <div className="ut-filled-content">
-                <div className="ut-ok-icon">✓</div>
-                <div className="ut-filled-name">{codebase!.name}</div>
-                <div className="ut-filled-meta">
-                  {fmtBytes(codebase!.size)} · ready for analysis
-                </div>
-                <button
-                  className="ut-replace-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setModal1(true);
-                  }}
-                >
-                  Replace file
-                </button>
+                <div className="ut-ok-icon">◈</div>
+                <div className="ut-filled-name">{githubRepo}</div>
+                <div className="ut-filled-meta">GitHub repo · ready for analysis</div>
               </div>
-            ) : (
-              <div className="ut-idle-content">
-                <div className="ut-icon">⇪</div>
-                <div className="ut-title">Drop .zip Archive</div>
-                <div className="ut-hint">
-                  or <span className="ut-browse">click to browse</span> · max 50 MB
-                </div>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".zip,application/zip,application/x-zip-compressed"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) attachFile(f);
-                e.target.value = "";
+            </div>
+          ) : (
+            <div
+              className={
+                "upload-target" + (codebase ? " filled" : "") + (dragOver ? " drag-over" : "")
+              }
+              onClick={() => !codebase && setUploadModalOpen(true)}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                if (!codebase) setDragOver(true);
               }}
-            />
-          </div>
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (!codebase) setDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const file = e.dataTransfer.files[0];
+                if (file) attachFile(file);
+              }}
+            >
+              <div className="ut-pulse-ring r1" />
+              <div className="ut-pulse-ring r2" />
+              <div className="ut-pulse-ring r3" />
+              <div className="ut-scan" />
+              {codebase ? (
+                <div className="ut-filled-content">
+                  <div className="ut-ok-icon">✓</div>
+                  <div className="ut-filled-name">{codebase.name}</div>
+                  <div className="ut-filled-meta">
+                    {fmtBytes(codebase.size)} · ready for analysis
+                  </div>
+                  <button
+                    className="ut-replace-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUploadModalOpen(true);
+                    }}
+                  >
+                    Replace file
+                  </button>
+                </div>
+              ) : (
+                <div className="ut-idle-content">
+                  <div className="ut-icon">⇪</div>
+                  <div className="ut-title">Drop .zip Archive</div>
+                  <div className="ut-hint">
+                    or <span className="ut-browse">click to browse</span> · max 50 MB
+                  </div>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip,application/zip,application/x-zip-compressed"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) attachFile(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          )}
 
           <div className="ut-meta-row">
-            <span className="ut-meta-chip">
-              <b>Format</b> .zip
-            </span>
-            <span className="ut-meta-chip">
-              <b>Max</b> 50 MB
-            </span>
-            <span className={"ut-meta-chip status" + (codebaseOk ? " ok" : "")}>
-              <span className="ut-dot" />
-              {codebaseOk ? "Archive ready" : "Awaiting upload"}
-            </span>
+            {sourceMode === "github" ? (
+              <>
+                <span className="ut-meta-chip">
+                  <b>Source</b> GitHub
+                </span>
+                <span className="ut-meta-chip status ok">
+                  <span className="ut-dot" />
+                  Repo connected
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="ut-meta-chip">
+                  <b>Format</b> .zip
+                </span>
+                <span className="ut-meta-chip">
+                  <b>Max</b> 50 MB
+                </span>
+                <span className={"ut-meta-chip status" + (codebase ? " ok" : "")}>
+                  <span className="ut-dot" />
+                  {codebase ? "Archive ready" : "Awaiting upload"}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Right: engine info */}
         <div className="deliver-right">
           <div className="dr-head">
             <span className="dr-label">▸ ANALYSIS ENGINE</span>
@@ -758,7 +813,11 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
             <TerminalLine delay={680}>escrow verifier · on-chain link</TerminalLine>
             <TerminalLine delay={880}>llm grader · claude-sonnet-4-6</TerminalLine>
             <TerminalLine delay={1080}>
-              awaiting archive upload_
+              {hasAnalyses
+                ? `stored analyses loaded · ${analyses.length} snapshot${analyses.length === 1 ? "" : "s"}`
+                : sourceMode === "github"
+                  ? "awaiting repository analysis_"
+                  : "awaiting archive upload_"}
               <span className="term-cursor" />
             </TerminalLine>
           </div>
@@ -782,15 +841,19 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
               },
               {
                 icon: "⬡",
-                title: "On-chain Verdict",
-                desc: "Score cryptographically linked to the escrow PDA",
+                title: "Stored Report History",
+                desc: "Each analysis stays attached to the milestone for later review",
               },
-            ].map((f, i) => (
-              <div className="ef-item" key={f.title} style={{ animationDelay: `${i * 120}ms` }}>
-                <span className="ef-icon">{f.icon}</span>
+            ].map((feature, i) => (
+              <div
+                className="ef-item"
+                key={feature.title}
+                style={{ animationDelay: `${i * 120}ms` }}
+              >
+                <span className="ef-icon">{feature.icon}</span>
                 <div>
-                  <div className="ef-title">{f.title}</div>
-                  <div className="ef-desc">{f.desc}</div>
+                  <div className="ef-title">{feature.title}</div>
+                  <div className="ef-desc">{feature.desc}</div>
                 </div>
               </div>
             ))}
@@ -798,17 +861,16 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
         </div>
       </div>
 
-      {/* ── Feature strip ── */}
       <div className="feature-strip">
         {[
           { stat: "RAG", label: "Retrieval-augmented grading" },
-          { stat: "LLM", label: "Claude-powered analysis" },
-          { stat: "ZK", label: "Verifiable on-chain result" },
+          { stat: "LLM", label: "Stored milestone analyses" },
+          { stat: "AUDIT", label: "Requirement-level evidence" },
           { stat: "< 2m", label: "Typical analysis time" },
-        ].map((c, i) => (
-          <div className="fs-card" key={c.stat} style={{ animationDelay: `${i * 80}ms` }}>
-            <div className="fs-stat">{c.stat}</div>
-            <div className="fs-label">{c.label}</div>
+        ].map((card, i) => (
+          <div className="fs-card" key={card.stat} style={{ animationDelay: `${i * 80}ms` }}>
+            <div className="fs-stat">{card.stat}</div>
+            <div className="fs-label">{card.label}</div>
           </div>
         ))}
       </div>
@@ -819,28 +881,145 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
         </div>
       )}
 
-      {/* ── CTA ── */}
+      {analysisFetchError && (
+        <div className="deliver-error" style={{ marginTop: 16 }}>
+          <b>History refresh:</b> {analysisFetchError}
+        </div>
+      )}
+
       <div className="cta-row">
         <div className="cta-meta">
           <div className={"item " + (codebaseOk ? "ok" : "no")}>
-            <span className="chk">{codebaseOk ? "✓" : ""}</span> ARCHIVE
+            <span className="chk">{codebaseOk ? "✓" : ""}</span>{" "}
+            {sourceMode === "github" ? "GITHUB REPO" : "ARCHIVE"}
           </div>
           <div className="item ok">
             <span className="chk">✓</span> ESCROW LOCKED
           </div>
+          <div className={"item " + (hasAnalyses ? "ok" : "no")}>
+            <span className="chk">{hasAnalyses ? "✓" : ""}</span> STORED ANALYSIS
+          </div>
         </div>
         <button className="btn-generate" disabled={!codebaseOk} onClick={runAnalysis}>
-          Generate Report<span className="ar">→</span>
+          {hasAnalyses ? "Generate New Report" : "Generate Report"}
+          <span className="ar">→</span>
         </button>
         <div className="cta-hint">LLM-powered · semantic analysis · 30–120 seconds</div>
       </div>
 
-      {analysis && <AnalysisReport data={analysis} />}
+      <div className="analysis-history">
+        <div className="section-h" style={{ marginBottom: 14 }}>
+          <span>▸ STORED ANALYSES</span>
+          <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
+            {analysisLoading
+              ? "Refreshing stored analyses…"
+              : hasAnalyses
+                ? `${analyses.length} stored report${analyses.length === 1 ? "" : "s"}`
+                : "No report stored yet"}
+          </span>
+        </div>
+
+        {analysisLoading && !hasAnalyses ? (
+          <div className="analysis-empty">Loading stored analyses…</div>
+        ) : hasAnalyses ? (
+          <div className="analysis-list">
+            {analyses.map((analysis, index) => {
+              const score = Math.round(analysis.summary.overallScore);
+              const isLatest = index === 0;
+              return (
+                <button
+                  key={analysis.id}
+                  type="button"
+                  className="analysis-card"
+                  onClick={() => setActiveAnalysis(analysis)}
+                >
+                  <div className="analysis-card-head">
+                    <div>
+                      <div className="analysis-card-title">
+                        Analysis snapshot{" "}
+                        {isLatest && <span className="analysis-latest">LATEST</span>}
+                      </div>
+                      <div className="analysis-card-meta">
+                        Created {fmtDateTime(analysis.createdAt)}
+                      </div>
+                    </div>
+                    <div
+                      className="analysis-score-pill"
+                      style={{
+                        color: getScoreTone(score),
+                        borderColor: `${getScoreTone(score)}55`,
+                        background: `${getScoreTone(score)}14`,
+                      }}
+                    >
+                      {score}/100
+                    </div>
+                  </div>
+
+                  <div className="analysis-card-stats">
+                    <span>{getVerdictLabel(score)}</span>
+                    <span>{fmtCount(analysis.summary.totalRequirements)} requirements</span>
+                    <span>{fmtCount(analysis.summary.codeFilesAnalyzed)} files analyzed</span>
+                  </div>
+
+                  <div className="analysis-card-breakdown">
+                    <span className="pass">{fmtCount(analysis.summary.passed)} passed</span>
+                    <span className="partial">{fmtCount(analysis.summary.partial)} partial</span>
+                    <span className="fail">{fmtCount(analysis.summary.failed)} failed</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="analysis-empty">
+            No stored analysis exists for this milestone yet. Run the analysis to create the first
+            review snapshot.
+          </div>
+        )}
+      </div>
+
+      {latestAnalysis && (
+        <div className="analysis-actions">
+          <div>
+            <div className="analysis-actions-title">Consumer actions</div>
+            <div className="analysis-actions-copy">
+              Review the latest stored analysis before releasing the escrowed funds.
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn" type="button" onClick={() => setActiveAnalysis(latestAnalysis)}>
+              Open latest analysis
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                setReleaseLoading(true);
+                setReleaseError(null);
+                try {
+                  await onReleaseFunds();
+                } catch (err) {
+                  setReleaseError(
+                    err instanceof Error ? err.message : "Failed to release milestone funds.",
+                  );
+                } finally {
+                  setReleaseLoading(false);
+                }
+              }}
+              disabled={releaseLoading}
+            >
+              {releaseLoading ? "Releasing funds…" : "Release funds"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {releaseError && <div className="auth-error">{releaseError}</div>}
 
       <Modal
-        open={modal1}
+        open={uploadModalOpen}
         onClose={() => {
-          setModal1(false);
+          setUploadModalOpen(false);
           setStagedCodebase(null);
         }}
         tag="INPUT 01"
@@ -852,7 +1031,7 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
               <button
                 className="btn"
                 onClick={() => {
-                  setModal1(false);
+                  setUploadModalOpen(false);
                   setStagedCodebase(null);
                 }}
               >
@@ -861,7 +1040,9 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
               <button
                 className="btn btn-primary"
                 disabled={!stagedCodebase}
-                onClick={confirmCodebase}
+                onClick={() => {
+                  if (stagedCodebase) attachFile(stagedCodebase);
+                }}
               >
                 Attach Archive
               </button>
@@ -874,18 +1055,54 @@ export default function CodeReport({ milestoneId }: { milestoneId: string }) {
           title="Drop .zip archive here"
           hint="one file · max 50 MB"
           accept=".zip,application/zip,application/x-zip-compressed"
-          onFiles={(f) => setStagedCodebase(f[0])}
+          onFiles={(files) => setStagedCodebase(files[0])}
         />
         <div className="modal-filelist">
           {stagedCodebase && (
-            <FileRow
-              key={codebaseAnimKey}
-              file={stagedCodebase}
-              uploading={codebaseAnimating}
-              onRemove={() => setStagedCodebase(null)}
-            />
+            <FileRow file={stagedCodebase} onRemove={() => setStagedCodebase(null)} />
           )}
         </div>
+      </Modal>
+
+      <Modal
+        open={!!activeAnalysis}
+        onClose={() => setActiveAnalysis(null)}
+        tag="ANALYSIS"
+        title={activeAnalysis ? fmtDateTime(activeAnalysis.createdAt) : ""}
+        size="wide"
+        footer={
+          activeAnalysis ? (
+            <div className="modal-foot">
+              <div>Milestone snapshot · {activeAnalysis.id.slice(0, 8)}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn" onClick={() => setActiveAnalysis(null)}>
+                  Close
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={async () => {
+                    setReleaseLoading(true);
+                    setReleaseError(null);
+                    try {
+                      await onReleaseFunds();
+                    } catch (err) {
+                      setReleaseError(
+                        err instanceof Error ? err.message : "Failed to release milestone funds.",
+                      );
+                    } finally {
+                      setReleaseLoading(false);
+                    }
+                  }}
+                  disabled={releaseLoading}
+                >
+                  {releaseLoading ? "Releasing funds…" : "Release funds"}
+                </button>
+              </div>
+            </div>
+          ) : null
+        }
+      >
+        {activeAnalysis && <AnalysisDetails analysis={activeAnalysis} />}
       </Modal>
 
       <LoadingModal open={loadingOpen} title={loadTitle} sub={loadSub} pct={loadPct} />

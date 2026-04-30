@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { authApi, authMeApi, userApi } from "./api";
+import { authApi, authMeApi, userApi, githubApi } from "./api";
 
 const JWT_KEY = "jwt";
 
@@ -9,6 +9,9 @@ export type User = {
   id: string;
   publicKey: string;
   role: UserRole | null;
+  githubId: string | null;
+  githubUsername: string | null;
+  githubAvatarUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -20,6 +23,8 @@ export type AuthUser = {
   initial: string;
   name: string;
   role: UserRole | null;
+  githubUsername: string | null;
+  githubAvatarUrl: string | null;
 };
 
 type PhantomProvider = {
@@ -71,6 +76,8 @@ type AuthCtx = {
   isInitializing: boolean;
   connectPhantom: () => Promise<AuthUser>;
   setRole: (role: UserRole) => Promise<void>;
+  connectGithub: (code: string) => Promise<void>;
+  disconnectGithub: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -99,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           initial: serverUser.publicKey.charAt(0).toUpperCase(),
           name: short,
           role: serverUser.role,
+          githubUsername: serverUser.githubUsername ?? null,
+          githubAvatarUrl: serverUser.githubAvatarUrl ?? null,
         });
       })
       .catch(() => {
@@ -144,6 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initial: address.charAt(0).toUpperCase(),
       name: short,
       role: serverUser.role,
+      githubUsername: serverUser.githubUsername ?? null,
+      githubAvatarUrl: serverUser.githubAvatarUrl ?? null,
     };
     setUser(u);
     return u;
@@ -153,6 +164,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) throw new Error("Not authenticated");
     await userApi.setRole(token, role);
     setUser((u) => (u ? { ...u, role } : u));
+  };
+
+  const connectGithub = async (code: string) => {
+    if (!token) throw new Error("Not authenticated");
+    const updated = await githubApi.connect(token, code);
+    setUser((u) =>
+      u
+        ? {
+            ...u,
+            githubUsername: updated.githubUsername ?? null,
+            githubAvatarUrl: updated.githubAvatarUrl ?? null,
+          }
+        : u,
+    );
+  };
+
+  const disconnectGithub = async () => {
+    if (!token) throw new Error("Not authenticated");
+    await githubApi.disconnect(token);
+    setUser((u) => (u ? { ...u, githubUsername: null, githubAvatarUrl: null } : u));
   };
 
   const logout = async () => {
@@ -168,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ user, token, isInitializing, connectPhantom, setRole, logout }}>
+    <Ctx.Provider value={{ user, token, isInitializing, connectPhantom, setRole, connectGithub, disconnectGithub, logout }}>
       {children}
     </Ctx.Provider>
   );

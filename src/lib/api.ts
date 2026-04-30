@@ -51,6 +51,55 @@ export const userApi = {
     }),
 };
 
+export type GithubRepo = {
+  id: number;
+  full_name: string;
+  name: string;
+  private: boolean;
+  html_url: string;
+  description: string | null;
+  updated_at: string;
+  language: string | null;
+  default_branch: string;
+};
+
+export const githubApi = {
+  /** Exchange a GitHub App OAuth code for a linked GitHub account. */
+  connect: (token: string, code: string) =>
+    apiFetch<import("./auth").User>("/auth/github", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code }),
+    }),
+
+  /** Unlink the GitHub account from the current user. */
+  disconnect: (token: string) =>
+    apiFetch<import("./auth").User>("/auth/github", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  /** Save a GitHub App installation ID (grants repo access). */
+  saveInstallation: (token: string, installationId: string) =>
+    apiFetch<{ installationId: string }>("/auth/github/installation", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ installationId }),
+    }),
+
+  /** List GitHub repos accessible via the stored installation. */
+  listRepos: (token: string) =>
+    apiFetch<GithubRepo[]>("/github/repos", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  /** Check whether a GitHub App installation is saved for the user. */
+  checkInstallation: (token: string) =>
+    apiFetch<{ hasInstallation: boolean }>("/github/installation", {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
 export type ProjectResponse = {
   id: string;
   title: string;
@@ -137,6 +186,7 @@ export enum MilestoneStatus {
   WAITING_FOR_DEPOSIT = "waiting_for_deposit",
   ACTIVE = "active",
   IN_PROGRESS = "in_progress",
+  COMPLETED = "completed",
 }
 
 export type MilestoneResponse = {
@@ -153,6 +203,8 @@ export type MilestoneResponse = {
   pda: string | null;
   depositDeadline: string | null;
   fundedAt: string | null;
+  githubRepo: string | null;
+  githubRepoUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -214,6 +266,43 @@ export type MilestoneFileResponse = {
   updatedAt: string;
 };
 
+export type AnalysisRequirement = {
+  id: string;
+  requirement: string;
+  category: string;
+};
+
+export type ReviewResult = AnalysisRequirement & {
+  status: "pass" | "partial" | "fail";
+  confidence: number;
+  reason: string;
+  evidence: string;
+  relevantFiles: string[];
+};
+
+export type AnalysisSummary = {
+  overallScore: number;
+  totalRequirements: number;
+  passed: number;
+  partial: number;
+  failed: number;
+  codeFilesAnalyzed: number;
+  codeChunksIndexed: number;
+  totalOpenAITokens: number;
+};
+
+export type AnalysisResult = {
+  summary: AnalysisSummary;
+  requirements: ReviewResult[];
+};
+
+export type StoredAnalysisResult = AnalysisResult & {
+  id: string;
+  milestoneId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const milestoneApi = {
   create: (token: string, projectId: string, input: CreateMilestoneInput) => {
     const form = new FormData();
@@ -265,6 +354,19 @@ export const milestoneApi = {
       headers: { Authorization: `Bearer ${token}` },
     }),
 
+  complete: (token: string, id: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/complete`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  submitRepo: (token: string, id: string, githubRepo: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/github-repo`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ githubRepo }),
+    }),
+
   getPinataGatewayUrl: (token: string) =>
     apiFetch<{ url: string }>("/milestone/pinata-gateway-url", {
       headers: { Authorization: `Bearer ${token}` },
@@ -272,6 +374,13 @@ export const milestoneApi = {
 
   getFiles: (token: string, milestoneId: string) =>
     apiFetch<MilestoneFileResponse[]>(`/milestone/${milestoneId}/files`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
+export const analysisApi = {
+  listForMilestone: (token: string, milestoneId: string) =>
+    apiFetch<StoredAnalysisResult[]>(`/analyze/milestone/${milestoneId}`, {
       headers: { Authorization: `Bearer ${token}` },
     }),
 };

@@ -1,6 +1,7 @@
 import {
   Connection,
   PublicKey,
+  SendTransactionError,
   SystemProgram,
   Transaction,
   VersionedTransaction,
@@ -13,6 +14,7 @@ import IDL from "./idls/git_escrow.json";
 export { BN };
 
 export const PROGRAM_ID = new PublicKey("GUndCD7drNPXK8ZTTvAey79Fcnv19PVfTt4ydAM9uKry");
+export const PLATFORM_WALLET = new PublicKey("AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9");
 
 const NETWORK = (import.meta.env.VITE_SOLANA_NETWORK as string) ?? "devnet";
 const RPC_URL =
@@ -149,6 +151,11 @@ export type InitializeMilestoneParams = {
   provider: PublicKey;
 };
 
+export type ReleaseMilestoneFundsParams = {
+  milestoneId: string;
+  provider: PublicKey;
+};
+
 /**
  * Consumer deposits SOL and creates the on-chain milestone escrow.
  * The connected Phantom wallet is treated as the consumer / signer.
@@ -162,7 +169,6 @@ export async function initializeMilestone(params: InitializeMilestoneParams): Pr
   const consumer = getWalletPublicKey();
   const normalizedId = normalizeMilestoneId(milestoneId);
   const [pda] = milestonePda(consumer, provider, normalizedId);
-  console.log("🚀 ~ initializeMilestone ~ pda:", pda);
 
   try {
     const sig = await program.methods
@@ -178,6 +184,44 @@ export async function initializeMilestone(params: InitializeMilestoneParams): Pr
     return sig;
   } catch (e) {
     console.error("Error initializing milestone:", e);
+    throw e;
+  }
+}
+
+/**
+ * Consumer approves the completed milestone and releases escrowed funds on-chain.
+ *
+ * @returns the confirmed transaction signature
+ */
+export async function releaseMilestoneFunds(params: ReleaseMilestoneFundsParams): Promise<string> {
+  const { milestoneId, provider } = params;
+
+  const program = getEscrowProgram();
+  const consumer = getWalletPublicKey();
+  const normalizedId = normalizeMilestoneId(milestoneId);
+  const [pda] = milestonePda(consumer, provider, normalizedId);
+
+  try {
+    const sig = await program.methods
+      .releaseFunds()
+      .accounts({
+        consumer,
+        provider,
+        platformWallet: PLATFORM_WALLET,
+        milestonePda: pda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    return sig;
+  } catch (e) {
+    console.error("Error releasing milestone funds:", e);
+
+    if (e instanceof SendTransactionError) {
+      const connection = getConnection();
+      const logs = await e.getLogs(connection);
+      console.error("Transaction error logs:", logs);
+    }
     throw e;
   }
 }

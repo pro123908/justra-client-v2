@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RoleRouteImport } from './routes/role'
+import { Route as GithubCallbackRouteImport } from './routes/github-callback'
+import { Route as GithubRouteImport } from './routes/github'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +21,16 @@ import { Route as ProjectsProjectIdMilestonesMilestoneIdRouteImport } from './ro
 const RoleRoute = RoleRouteImport.update({
   id: '/role',
   path: '/role',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GithubCallbackRoute = GithubCallbackRouteImport.update({
+  id: '/github-callback',
+  path: '/github-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GithubRoute = GithubRouteImport.update({
+  id: '/github',
+  path: '/github',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -52,6 +64,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/github': typeof GithubRoute
+  '/github-callback': typeof GithubCallbackRoute
   '/role': typeof RoleRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/projects/$projectId/milestones/$milestoneId': typeof ProjectsProjectIdMilestonesMilestoneIdRoute
@@ -60,6 +74,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/github': typeof GithubRoute
+  '/github-callback': typeof GithubCallbackRoute
   '/role': typeof RoleRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/projects/$projectId/milestones/$milestoneId': typeof ProjectsProjectIdMilestonesMilestoneIdRoute
@@ -69,6 +85,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/github': typeof GithubRoute
+  '/github-callback': typeof GithubCallbackRoute
   '/role': typeof RoleRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/projects/$projectId_/milestones/$milestoneId': typeof ProjectsProjectIdMilestonesMilestoneIdRoute
@@ -79,6 +97,8 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/github'
+    | '/github-callback'
     | '/role'
     | '/projects/$projectId'
     | '/projects/$projectId/milestones/$milestoneId'
@@ -87,6 +107,8 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/github'
+    | '/github-callback'
     | '/role'
     | '/projects/$projectId'
     | '/projects/$projectId/milestones/$milestoneId'
@@ -95,6 +117,8 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/github'
+    | '/github-callback'
     | '/role'
     | '/projects/$projectId'
     | '/projects/$projectId_/milestones/$milestoneId'
@@ -104,6 +128,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
+  GithubRoute: typeof GithubRoute
+  GithubCallbackRoute: typeof GithubCallbackRoute
   RoleRoute: typeof RoleRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   ProjectsProjectIdMilestonesMilestoneIdRoute: typeof ProjectsProjectIdMilestonesMilestoneIdRoute
@@ -116,6 +142,20 @@ declare module '@tanstack/react-router' {
       path: '/role'
       fullPath: '/role'
       preLoaderRoute: typeof RoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/github-callback': {
+      id: '/github-callback'
+      path: '/github-callback'
+      fullPath: '/github-callback'
+      preLoaderRoute: typeof GithubCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/github': {
+      id: '/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof GithubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -160,6 +200,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
+  GithubRoute: GithubRoute,
+  GithubCallbackRoute: GithubCallbackRoute,
   RoleRoute: RoleRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   ProjectsProjectIdMilestonesMilestoneIdRoute:

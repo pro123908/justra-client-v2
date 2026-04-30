@@ -46,6 +46,7 @@ function statusGroup(s: MilestoneStatus): "pending" | "approved" | "rejected" {
       return "pending";
     case MilestoneStatus.ACTIVE:
     case MilestoneStatus.IN_PROGRESS:
+    case MilestoneStatus.COMPLETED:
       return "approved";
     case MilestoneStatus.REJECTED:
       return "rejected";
@@ -66,6 +67,8 @@ function statusLabel(s: MilestoneStatus) {
       return "Awaiting deposit";
     case MilestoneStatus.IN_PROGRESS:
       return "In progress";
+    case MilestoneStatus.COMPLETED:
+      return "Completed";
     default:
       return String(s);
   }

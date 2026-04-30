@@ -29,7 +29,8 @@ function RolePage() {
 
   const choose = async (r: UserRole) => {
     await setRole(r);
-    navigate({ to: "/dashboard" });
+    // Providers must connect GitHub before accessing the dashboard
+    navigate({ to: r === "provider" ? "/github" : "/dashboard" });
   };
 
   return (
@@ -60,6 +61,7 @@ function RolePage() {
             ]}
             cta="Continue as Provider"
             onClick={() => choose("provider")}
+            required="Requires GitHub account"
           />
           <RoleCard
             tag="ROLE · 02"
@@ -88,6 +90,7 @@ function RoleCard({
   bullets,
   cta,
   onClick,
+  required,
 }: {
   tag: string;
   title: string;
@@ -96,6 +99,7 @@ function RoleCard({
   bullets: string[];
   cta: string;
   onClick: () => void;
+  required?: string;
 }) {
   return (
     <button className="role-card" onClick={onClick} type="button">
@@ -113,6 +117,11 @@ function RoleCard({
           </li>
         ))}
       </ul>
+      {required && (
+        <div className="role-card-required">
+          <span className="rcl-mark">⬡</span> {required}
+        </div>
+      )}
       <div className="role-card-cta">
         <span>{cta}</span>
         <span className="arrow">→</span>
