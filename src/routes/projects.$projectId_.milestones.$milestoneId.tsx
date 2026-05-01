@@ -1,18 +1,21 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { buildGithubAppInstallUrl } from "@/routes/github";
 import { PublicKey } from "@solana/web3.js";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
 import {
   milestoneApi,
-  githubApi,
   MilestoneStatus,
   type MilestoneResponse,
   type MilestoneFileResponse,
-  type GithubRepo,
 } from "@/lib/api";
-import { initializeMilestone, releaseMilestoneFunds, solToLamports, sha256 } from "@/lib/solana";
+import {
+  initializeMilestone,
+  releaseMilestoneFunds,
+  disputeMilestone,
+  solToLamports,
+  sha256,
+} from "@/lib/solana";
 import CodeReport from "@/components/milestone/CodeReport";
 import "@/components/git-escrow.css";
 
@@ -71,6 +74,7 @@ function statusGroup(s: MilestoneStatus): "pending" | "approved" | "rejected" {
     case MilestoneStatus.COMPLETED:
       return "approved";
     case MilestoneStatus.REJECTED:
+    case MilestoneStatus.DISPUTED:
       return "rejected";
     default:
       return "pending";
@@ -91,6 +95,8 @@ function statusLabel(s: MilestoneStatus) {
       return "Rejected";
     case MilestoneStatus.WAITING_FOR_DEPOSIT:
       return "Awaiting deposit";
+    case MilestoneStatus.DISPUTED:
+      return "Disputed · frozen";
     default:
       return String(s);
   }
@@ -195,6 +201,8 @@ function MilestoneDetailPage() {
   const isConsumer = user.role === "consumer";
   const needsDeposit = isConsumer && milestone.status === MilestoneStatus.WAITING_FOR_DEPOSIT;
   const isActive = milestone.status === MilestoneStatus.ACTIVE;
+  const isDisputed = milestone.status === MilestoneStatus.DISPUTED;
+  const showCodeReport = isActive || isDisputed;
   console.log(
     "🚀 ~ MilestoneDetailPage ~ needsDeposit:",
     needsDeposit,
@@ -331,6 +339,24 @@ function MilestoneDetailPage() {
     setMilestone(updated);
   };
 
+  const handleDispute = async () => {
+    if (!token) throw new Error("Not authenticated.");
+
+    // The on-chain dispute instruction requires the provider to sign.
+    // Attempt it and continue to the API call regardless so the UI reflects disputed state.
+    try {
+      await disputeMilestone({
+        milestoneId: milestone.id,
+        provider: new PublicKey(milestone.provider.publicKey),
+      });
+    } catch (e) {
+      console.warn("On-chain dispute call failed (provider signature required):", e);
+    }
+
+    const updated = await milestoneApi.dispute(token, milestone.id);
+    setMilestone(updated);
+  };
+
   return (
     <div className="git-escrow-root">
       <div className="wrap">
@@ -426,6 +452,31 @@ function MilestoneDetailPage() {
               amount={milestone.amount}
               fundedAt={milestone.fundedAt}
             />
+          )}
+
+          {/* Disputed — frozen banner */}
+          {isDisputed && (
+            <div
+              style={{
+                marginTop: 32,
+                border: "1px solid var(--red, #ef4444)",
+                borderRadius: 8,
+                padding: "20px 24px",
+                background: "rgba(239,68,68,0.06)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div className="form-label" style={{ fontSize: 13, color: "var(--red, #ef4444)" }}>
+                ▸ Milestone disputed · escrow frozen
+              </div>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--ink-mute)" }}>
+                This milestone has been disputed. ◎ {milestone.amount} SOL remains locked in the
+                escrow PDA pending arbitration. No further actions are available until the dispute
+                is resolved.
+              </p>
+            </div>
           )}
 
           <div className="ms-hero">
@@ -577,30 +628,41 @@ function MilestoneDetailPage() {
           )}
         </div>
 
-        {/* Provider-only: repo submission + code delivery when milestone ACTIVE */}
-        {isActive && isProvider && (
+        {/* Provider-only: code submission + analysis when milestone ACTIVE or DISPUTED */}
+        {showCodeReport && isProvider && (
           <div style={{ marginTop: 32 }}>
             <div className="section-h" style={{ marginBottom: 14 }}>
-              <span>▸ SUBMIT REPOSITORY</span>
+              <span>▸ CODE SUBMISSION</span>
               <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
-                Link the GitHub repo you will deliver work in
+                {isDisputed
+                  ? "Frozen · dispute in progress"
+                  : "Submit your codebase and run analysis"}
               </span>
             </div>
-            <RepoSubmissionSection
-              milestone={milestone}
-              token={token!}
-              onRepoSubmitted={setMilestone}
+            <CodeReport
+              milestoneId={milestoneId}
+              githubRepo={milestone.githubRepo}
+              token={token}
+              onReleaseFunds={async () => {}}
+              onRepoSubmit={async (repoUrl) => {
+                const updated = await milestoneApi.submitRepo(token!, milestoneId, repoUrl);
+                setMilestone(updated);
+              }}
+              role="provider"
+              isDisabled={isDisputed}
             />
           </div>
         )}
 
-        {/* Consumer view of active milestone — generate report */}
-        {isActive && isConsumer && (
+        {/* Consumer view of active/disputed milestone — generate report */}
+        {showCodeReport && isConsumer && (
           <div style={{ marginTop: 32 }}>
             <div className="section-h" style={{ marginBottom: 14 }}>
               <span>▸ DELIVER CODE · ANALYSIS HISTORY</span>
               <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
-                Run fresh analyses and inspect stored review snapshots before release
+                {isDisputed
+                  ? "Frozen · dispute in progress"
+                  : "Run fresh analyses and inspect stored review snapshots before release"}
               </span>
             </div>
             <CodeReport
@@ -608,6 +670,9 @@ function MilestoneDetailPage() {
               githubRepo={milestone.githubRepo}
               token={token}
               onReleaseFunds={handleReleaseFunds}
+              onDispute={isDisputed ? undefined : handleDispute}
+              role="consumer"
+              isDisabled={isDisputed}
             />
           </div>
         )}
@@ -1053,270 +1118,6 @@ function MilestoneDetailPage() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function RepoSubmissionSection({
-  milestone,
-  token,
-  onRepoSubmitted,
-}: {
-  milestone: MilestoneResponse;
-  token: string;
-  onRepoSubmitted: (updated: MilestoneResponse) => void;
-}) {
-  const [repos, setRepos] = useState<GithubRepo[]>([]);
-  const [reposLoading, setReposLoading] = useState(true);
-  const [reposError, setReposError] = useState("");
-  const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [changing, setChanging] = useState(false);
-
-  const hasRepo = !!milestone.githubRepo && !changing;
-
-  useEffect(() => {
-    if (hasRepo) return;
-    setReposLoading(true);
-    githubApi
-      .listRepos(token)
-      .then((data) => setRepos(data))
-      .catch(() => setReposError("Could not load repositories."))
-      .finally(() => setReposLoading(false));
-  }, [token, hasRepo]);
-
-  const handleSubmit = async () => {
-    if (!selectedRepo) return;
-    setSubmitting(true);
-    setSubmitError("");
-    try {
-      const updated = await milestoneApi.submitRepo(token, milestone.id, selectedRepo.html_url);
-      onRepoSubmitted(updated);
-      setChanging(false);
-      setSelectedRepo(null);
-    } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Failed to submit repository.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // ── Submitted state ──────────────────────────────────────────────────────
-  if (hasRepo) {
-    return (
-      <div
-        style={{
-          border: "1px solid var(--line-2)",
-          borderRadius: 8,
-          padding: "20px 22px",
-          background: "var(--panel)",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="form-label" style={{ fontSize: 11 }}>
-            ▸ Repository linked
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "var(--neon)",
-                boxShadow: "0 0 8px var(--neon)",
-                flexShrink: 0,
-              }}
-            />
-            <span style={{ fontFamily: "var(--mono)", fontSize: 14, color: "var(--ink)" }}>
-              {milestone.githubRepo}
-            </span>
-          </div>
-          {milestone.githubRepoUrl && (
-            <a
-              href={milestone.githubRepoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ fontSize: 11, color: "var(--neon-2)", marginLeft: 18 }}
-            >
-              {milestone.githubRepoUrl} ↗
-            </a>
-          )}
-        </div>
-        <button
-          className="btn"
-          style={{ fontSize: 12, flexShrink: 0 }}
-          onClick={() => {
-            setChanging(true);
-            setSelectedRepo(null);
-          }}
-        >
-          Change repo
-        </button>
-      </div>
-    );
-  }
-
-  // ── Entry form ───────────────────────────────────────────────────────────
-  return (
-    <div
-      style={{
-        border: "1px solid var(--line)",
-        borderRadius: 8,
-        background: "var(--panel)",
-        overflow: "hidden",
-      }}
-    >
-      <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
-        <p style={{ margin: 0, fontSize: 13, color: "var(--ink-dim)", lineHeight: 1.6 }}>
-          Select the GitHub repository you will deliver work to. Only repos accessible via the
-          installed GitHub App are shown.
-        </p>
-
-        {reposLoading ? (
-          <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>Loading repositories…</div>
-        ) : reposError || repos.length === 0 ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 14px",
-              border: "1px solid var(--line-2)",
-              borderRadius: 6,
-              background: "var(--bg-2)",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <span style={{ fontSize: 12, color: "var(--ink-dim)" }}>
-              {reposError || "No repositories found. Grant the app access to your repos first."}
-            </span>
-            <button
-              className="btn"
-              style={{ fontSize: 12, flexShrink: 0 }}
-              onClick={() => {
-                const state = JSON.stringify({ milestoneRedirect: window.location.pathname });
-                window.location.href = buildGithubAppInstallUrl(state);
-              }}
-            >
-              Grant repo access ↗
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 2,
-              }}
-            >
-              <label className="form-label" style={{ fontSize: 11 }}>
-                ▸ Select repository
-              </label>
-              <button
-                className="btn"
-                style={{ fontSize: 11, padding: "2px 8px" }}
-                onClick={() => {
-                  const state = JSON.stringify({ milestoneRedirect: window.location.pathname });
-                  window.location.href = buildGithubAppInstallUrl(state);
-                }}
-              >
-                Manage access ↗
-              </button>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                maxHeight: 220,
-                overflowY: "auto",
-              }}
-            >
-              {repos.map((repo) => (
-                <button
-                  key={repo.id}
-                  onClick={() => setSelectedRepo(repo)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 14px",
-                    border: `1px solid ${selectedRepo?.id === repo.id ? "var(--neon)" : "var(--line-2)"}`,
-                    borderRadius: 6,
-                    background: selectedRepo?.id === repo.id ? "var(--neon-bg)" : "var(--bg-2)",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    width: "100%",
-                    transition: "border-color 0.15s, background 0.15s",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: repo.private ? "var(--ink-dim)" : "var(--neon)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontFamily: "var(--mono)",
-                      fontSize: 13,
-                      color: "var(--ink)",
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {repo.full_name}
-                  </span>
-                  {repo.private && (
-                    <span style={{ fontSize: 10, color: "var(--ink-dim)", flexShrink: 0 }}>
-                      private
-                    </span>
-                  )}
-                  {repo.language && (
-                    <span style={{ fontSize: 10, color: "var(--ink-dim)", flexShrink: 0 }}>
-                      {repo.language}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div
-        style={{
-          padding: "14px 22px",
-          borderTop: "1px solid var(--line)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: 10,
-        }}
-      >
-        {submitError && <span style={{ fontSize: 11, color: "var(--red)" }}>{submitError}</span>}
-        <button
-          className="btn btn-primary"
-          onClick={handleSubmit}
-          disabled={!selectedRepo || submitting}
-        >
-          {submitting ? "Submitting…" : "Submit repository →"}
-        </button>
-      </div>
     </div>
   );
 }

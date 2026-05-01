@@ -187,6 +187,7 @@ export enum MilestoneStatus {
   ACTIVE = "active",
   IN_PROGRESS = "in_progress",
   COMPLETED = "completed",
+  DISPUTED = "disputed",
 }
 
 export type MilestoneResponse = {
@@ -296,9 +297,32 @@ export type AnalysisResult = {
   requirements: ReviewResult[];
 };
 
-export type StoredAnalysisResult = AnalysisResult & {
+export type MilestoneAnalysisRequirementResponse = {
   id: string;
-  milestoneId: string;
+  sortOrder: number;
+  requirementId: string;
+  requirement: string;
+  category: string;
+  status: "pass" | "partial" | "fail";
+  confidence: number;
+  reason: string;
+  evidence: string;
+  relevantFiles: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StoredAnalysisResult = {
+  id: string;
+  overallScore: number;
+  totalRequirements: number;
+  passed: number;
+  partial: number;
+  failed: number;
+  codeFilesAnalyzed: number;
+  codeChunksIndexed: number;
+  totalOpenAITokens: number;
+  requirements: MilestoneAnalysisRequirementResponse[];
   createdAt: string;
   updatedAt: string;
 };
@@ -356,6 +380,12 @@ export const milestoneApi = {
 
   complete: (token: string, id: string) =>
     apiFetch<MilestoneResponse>(`/milestone/${id}/complete`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  dispute: (token: string, id: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/dispute`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
     }),

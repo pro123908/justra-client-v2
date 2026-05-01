@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   analysisApi,
+  githubApi,
   type AnalysisResult,
+  type GithubRepo,
+  type MilestoneAnalysisRequirementResponse,
   type ReviewResult,
   type StoredAnalysisResult,
 } from "@/lib/api";
+import { buildGithubAppInstallUrl } from "@/routes/github";
 import "@/components/git-escrow.css";
 
 /* ---------------- helpers ---------------- */
@@ -31,20 +35,38 @@ const fmtDateTime = (value?: string | null) => {
 
 const fmtCount = (value?: number | null) => (value ?? 0).toLocaleString();
 
-const ext = (name: string) => (name.split(".").pop() || "").toUpperCase().slice(0, 4);
-
 const sortAnalyses = (items: StoredAnalysisResult[]) =>
   [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
 const materializeFallbackAnalysis = (
-  milestoneId: string,
+  _milestoneId: string,
   analysis: AnalysisResult,
 ): StoredAnalysisResult => {
   const now = new Date().toISOString();
   return {
-    ...analysis,
     id: crypto.randomUUID(),
-    milestoneId,
+    overallScore: analysis.summary.overallScore,
+    totalRequirements: analysis.summary.totalRequirements,
+    passed: analysis.summary.passed,
+    partial: analysis.summary.partial,
+    failed: analysis.summary.failed,
+    codeFilesAnalyzed: analysis.summary.codeFilesAnalyzed,
+    codeChunksIndexed: analysis.summary.codeChunksIndexed,
+    totalOpenAITokens: analysis.summary.totalOpenAITokens,
+    requirements: analysis.requirements.map((r, i) => ({
+      id: crypto.randomUUID(),
+      sortOrder: i,
+      requirementId: r.id,
+      requirement: r.requirement,
+      category: r.category,
+      status: r.status,
+      confidence: r.confidence,
+      reason: r.reason,
+      evidence: r.evidence,
+      relevantFiles: r.relevantFiles,
+      createdAt: now,
+      updatedAt: now,
+    })),
     createdAt: now,
     updatedAt: now,
   };
@@ -62,60 +84,6 @@ const getScoreTone = (score: number) => {
   if (score >= 65) return "#eab308";
   return "#ef4444";
 };
-
-/* ---------------- file row ---------------- */
-function FileRow({
-  file,
-  uploading,
-  onRemove,
-}: {
-  file: File;
-  uploading?: boolean;
-  onRemove: () => void;
-}) {
-  const barRef = useRef<HTMLElement | null>(null);
-  const [show, setShow] = useState(!!uploading);
-
-  useEffect(() => {
-    if (!uploading) return;
-    let progress = 0;
-    const iv = setInterval(() => {
-      progress += Math.random() * 14 + 6;
-      const bar = barRef.current;
-      if (!bar) return;
-      if (progress >= 100) {
-        progress = 100;
-        bar.style.width = "100%";
-        clearInterval(iv);
-        setTimeout(() => setShow(false), 300);
-      } else {
-        bar.style.width = `${progress}%`;
-      }
-    }, 140);
-    return () => clearInterval(iv);
-  }, [uploading]);
-
-  return (
-    <div className={"file-row" + (show ? " uploading" : "")}>
-      <div className="ico">{ext(file.name)}</div>
-      <div className="nm">{file.name}</div>
-      <div className="sz">{fmtBytes(file.size)}</div>
-      <button className="rm" aria-label="remove" onClick={onRemove}>
-        ×
-      </button>
-      {show && (
-        <div className="mini-bar">
-          <i
-            ref={(el) => {
-              barRef.current = el;
-            }}
-            style={{ width: 0 }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ---------------- modal ---------------- */
 function Modal({
@@ -172,71 +140,6 @@ function Modal({
         {loading ? children : <div className="modal-body">{children}</div>}
         {!loading && footer}
       </div>
-    </div>
-  );
-}
-
-/* ---------------- drop area ---------------- */
-function DropArea({
-  icon,
-  title,
-  hint,
-  multiple,
-  accept,
-  onFiles,
-}: {
-  icon: string;
-  title: string;
-  hint: string;
-  multiple?: boolean;
-  accept: string;
-  onFiles: (files: File[]) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [hover, setHover] = useState(false);
-
-  return (
-    <div
-      className={"drop-area" + (hover ? " hover" : "")}
-      onClick={(e) => {
-        if (!(e.target as HTMLElement).closest("input")) inputRef.current?.click();
-      }}
-      onDragEnter={(e) => {
-        e.preventDefault();
-        setHover(true);
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setHover(true);
-      }}
-      onDragLeave={(e) => {
-        e.preventDefault();
-        setHover(false);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setHover(false);
-        const dropped = [...e.dataTransfer.files];
-        if (dropped.length) onFiles(dropped);
-      }}
-    >
-      <div className="icon">{icon}</div>
-      <h3>{title}</h3>
-      <p>
-        or <span className="browse">browse files</span> · {hint}
-      </p>
-      <input
-        type="file"
-        ref={inputRef}
-        multiple={multiple}
-        accept={accept}
-        style={{ display: "none" }}
-        onChange={(e) => {
-          const files = [...(e.target.files || [])];
-          if (files.length) onFiles(files);
-          e.target.value = "";
-        }}
-      />
     </div>
   );
 }
@@ -311,24 +214,14 @@ function StatusBadge({ status }: { status: ReviewResult["status"] }) {
   );
 }
 
-function TerminalLine({ children, delay }: { children: React.ReactNode; delay: number }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), delay);
-    return () => clearTimeout(t);
-  }, [delay]);
-
-  return (
-    <div className={"term-line" + (visible ? " show" : "")}>
-      <span className="term-prompt">▸</span>
-      <span className="term-text">{children}</span>
-    </div>
+function RequirementBreakdown({
+  requirements,
+}: {
+  requirements: MilestoneAnalysisRequirementResponse[];
+}) {
+  const [filter, setFilter] = useState<"all" | MilestoneAnalysisRequirementResponse["status"]>(
+    "all",
   );
-}
-
-function RequirementBreakdown({ requirements }: { requirements: ReviewResult[] }) {
-  const [filter, setFilter] = useState<"all" | ReviewResult["status"]>("all");
 
   const filtered =
     filter === "all"
@@ -372,7 +265,7 @@ function RequirementBreakdown({ requirements }: { requirements: ReviewResult[] }
             <div key={requirement.id} className="analysis-requirement">
               <div className="analysis-requirement-head">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <span className="analysis-req-id">{requirement.id}</span>
+                  <span className="analysis-req-id">{requirement.requirementId}</span>
                   <StatusBadge status={requirement.status} />
                   <span className="analysis-req-category">{requirement.category}</span>
                 </div>
@@ -417,8 +310,7 @@ function RequirementBreakdown({ requirements }: { requirements: ReviewResult[] }
 }
 
 function AnalysisDetails({ analysis }: { analysis: StoredAnalysisResult }) {
-  const { summary } = analysis;
-  const roundedScore = Math.round(summary.overallScore);
+  const roundedScore = Math.round(analysis.overallScore);
   const verdict = getVerdictLabel(roundedScore);
 
   return (
@@ -444,13 +336,13 @@ function AnalysisDetails({ analysis }: { analysis: StoredAnalysisResult }) {
 
       <div className="analysis-summary-grid">
         {[
-          { label: "Requirements", value: fmtCount(summary.totalRequirements) },
-          { label: "Passed", value: fmtCount(summary.passed), tone: "#22c55e" },
-          { label: "Partial", value: fmtCount(summary.partial), tone: "#eab308" },
-          { label: "Failed", value: fmtCount(summary.failed), tone: "#ef4444" },
-          { label: "Files analyzed", value: fmtCount(summary.codeFilesAnalyzed) },
-          { label: "Chunks indexed", value: fmtCount(summary.codeChunksIndexed) },
-          { label: "OpenAI tokens", value: fmtCount(summary.totalOpenAITokens ?? 0) },
+          { label: "Requirements", value: fmtCount(analysis.totalRequirements) },
+          { label: "Passed", value: fmtCount(analysis.passed), tone: "#22c55e" },
+          { label: "Partial", value: fmtCount(analysis.partial), tone: "#eab308" },
+          { label: "Failed", value: fmtCount(analysis.failed), tone: "#ef4444" },
+          { label: "Files analyzed", value: fmtCount(analysis.codeFilesAnalyzed) },
+          { label: "Chunks indexed", value: fmtCount(analysis.codeChunksIndexed) },
+          { label: "OpenAI tokens", value: fmtCount(analysis.totalOpenAITokens ?? 0) },
         ].map((item) => (
           <div key={item.label} className="analysis-metric-card">
             <div className="analysis-metric-label">{item.label}</div>
@@ -472,19 +364,35 @@ export default function CodeReport({
   githubRepo,
   token,
   onReleaseFunds,
+  onRepoSubmit,
+  onDispute,
+  role,
+  isDisabled = false,
 }: {
   milestoneId: string;
   githubRepo: string | null;
   token: string | null;
   onReleaseFunds: () => Promise<void>;
+  onRepoSubmit?: (repoUrl: string) => Promise<void>;
+  onDispute?: () => Promise<void>;
+  role: "provider" | "consumer";
+  isDisabled?: boolean;
 }) {
+  const isProvider = role === "provider";
   const [sourceMode, setSourceMode] = useState<"zip" | "github">(githubRepo ? "github" : "zip");
   const [codebase, setCodebase] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [stagedCodebase, setStagedCodebase] = useState<File | null>(null);
+  /* GitHub repo picker */
+  const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [repoSearch, setRepoSearch] = useState("");
+  const [repoPage, setRepoPage] = useState(1);
+  const [selectedRepo, setSelectedRepo] = useState<GithubRepo | null>(null);
+  const [repoSubmitting, setRepoSubmitting] = useState(false);
+  const [repoSubmitError, setRepoSubmitError] = useState<string | null>(null);
 
   const [loadingOpen, setLoadingOpen] = useState(false);
   const [loadTitle, setLoadTitle] = useState("Analyzing codebase");
@@ -499,34 +407,39 @@ export default function CodeReport({
   const [error, setError] = useState<string | null>(null);
   const [releaseLoading, setReleaseLoading] = useState(false);
   const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [disputeLoading, setDisputeLoading] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
 
-  const codebaseOk = sourceMode === "github" ? !!githubRepo : !!codebase;
+  const codebaseOk = isProvider
+    ? sourceMode === "github"
+      ? !!githubRepo
+      : !!codebase
+    : !!githubRepo;
   const hasAnalyses = analyses.length > 0;
 
-  const attachFile = (file: File) => {
-    setCodebase(file);
-    setUploadModalOpen(false);
-    setStagedCodebase(null);
-  };
+  const attachFile = (file: File) => setCodebase(file);
 
-  const refreshAnalyses = async (showSpinner = true): Promise<StoredAnalysisResult[]> => {
-    if (!token) return [];
-    if (showSpinner) setAnalysisLoading(true);
-    setAnalysisFetchError(null);
+  const refreshAnalyses = useCallback(
+    async (showSpinner = true): Promise<StoredAnalysisResult[]> => {
+      if (!token) return [];
+      if (showSpinner) setAnalysisLoading(true);
+      setAnalysisFetchError(null);
 
-    try {
-      const results = sortAnalyses(await analysisApi.listForMilestone(token, milestoneId));
-      setAnalyses(results);
-      return results;
-    } catch (err) {
-      setAnalysisFetchError(
-        err instanceof Error ? err.message : "Failed to load stored milestone analyses.",
-      );
-      return [];
-    } finally {
-      if (showSpinner) setAnalysisLoading(false);
-    }
-  };
+      try {
+        const results = sortAnalyses(await analysisApi.listForMilestone(token, milestoneId));
+        setAnalyses(results);
+        return results;
+      } catch (err) {
+        setAnalysisFetchError(
+          err instanceof Error ? err.message : "Failed to load stored milestone analyses.",
+        );
+        return [];
+      } finally {
+        if (showSpinner) setAnalysisLoading(false);
+      }
+    },
+    [token, milestoneId],
+  );
 
   useEffect(() => {
     setSourceMode(githubRepo ? "github" : "zip");
@@ -535,7 +448,18 @@ export default function CodeReport({
   useEffect(() => {
     if (!token) return;
     void refreshAnalyses();
-  }, [token, milestoneId]);
+  }, [refreshAnalyses, token, milestoneId]);
+
+  useEffect(() => {
+    if (!isProvider || sourceMode !== "github" || !token) return;
+    setReposLoading(true);
+    setReposError(null);
+    githubApi
+      .listRepos(token)
+      .then(setRepos)
+      .catch(() => setReposError("Could not load repositories."))
+      .finally(() => setReposLoading(false));
+  }, [isProvider, sourceMode, token]);
 
   const runAnalysis = async () => {
     if (!codebaseOk) return;
@@ -609,304 +533,624 @@ export default function CodeReport({
 
   const latestAnalysis = analyses[0] ?? null;
 
+  /* Repo pagination */
+  const REPOS_PER_PAGE = 6;
+  const filteredRepos = repos.filter((r) =>
+    r.full_name.toLowerCase().includes(repoSearch.toLowerCase()),
+  );
+  const totalRepoPages = Math.max(1, Math.ceil(filteredRepos.length / REPOS_PER_PAGE));
+  const currentRepoPage = Math.min(repoPage, totalRepoPages);
+  const pagedRepos = filteredRepos.slice(
+    (currentRepoPage - 1) * REPOS_PER_PAGE,
+    currentRepoPage * REPOS_PER_PAGE,
+  );
+
   return (
     <>
-      <div className="deliver-pipeline">
-        <div className="pip-step active">
-          <div className="pip-num">01</div>
-          <div className="pip-label">
-            {sourceMode === "github" ? "GitHub Repo" : "Upload Archive"}
+      {/* ── Provider submission UI ── */}
+      {isProvider && (
+        <>
+          {/* Minimal tab bar */}
+          <div
+            style={{
+              display: "flex",
+              borderBottom: "1px solid var(--line)",
+              marginBottom: 20,
+            }}
+          >
+            {(["zip", "github"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setSourceMode(mode)}
+                style={{
+                  padding: "8px 18px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: `2px solid ${sourceMode === mode ? "var(--ink)" : "transparent"}`,
+                  color: sourceMode === mode ? "var(--ink)" : "var(--ink-dim)",
+                  fontFamily: "var(--display)",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  marginBottom: -1,
+                  transition: "color 0.15s, border-color 0.15s",
+                }}
+              >
+                {mode === "zip" ? "Upload .zip" : "GitHub Repo"}
+              </button>
+            ))}
           </div>
-        </div>
-        <div className="pip-connector">
-          <div className="pip-connector-fill" style={{ width: codebaseOk ? "100%" : "0%" }} />
-        </div>
-        <div className={"pip-step" + (codebaseOk ? " active" : "")}>
-          <div className="pip-num">02</div>
-          <div className="pip-label">AI Analysis</div>
-        </div>
-        <div className="pip-connector">
-          <div className="pip-connector-fill" style={{ width: hasAnalyses ? "100%" : "0%" }} />
-        </div>
-        <div className={"pip-step" + (hasAnalyses ? " active" : "")}>
-          <div className="pip-num">03</div>
-          <div className="pip-label">Release Escrow</div>
-        </div>
-      </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        <button
-          onClick={() => !githubRepo && setSourceMode("zip")}
-          style={{
-            flex: 1,
-            padding: "10px 16px",
-            border: `1px solid ${sourceMode === "zip" ? "var(--ink)" : "var(--line)"}`,
-            borderRadius: 6,
-            background: sourceMode === "zip" ? "var(--ink)" : "var(--panel)",
-            color: sourceMode === "zip" ? "var(--bg)" : "var(--ink-dim)",
-            fontFamily: "var(--display)",
-            fontWeight: 600,
-            fontSize: 12,
-            letterSpacing: "0.06em",
-            cursor: githubRepo ? "not-allowed" : "pointer",
-            opacity: githubRepo ? 0.4 : 1,
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-          disabled={!!githubRepo}
-          title={
-            githubRepo ? "GitHub repo is connected — disconnect it to use zip upload" : undefined
-          }
-        >
-          ⇪ Upload .zip Archive
-        </button>
-        <button
-          onClick={() => setSourceMode("github")}
-          style={{
-            flex: 1,
-            padding: "10px 16px",
-            border: `1px solid ${sourceMode === "github" ? "var(--ink)" : "var(--line)"}`,
-            borderRadius: 6,
-            background: sourceMode === "github" ? "var(--ink)" : "var(--panel)",
-            color:
-              sourceMode === "github" ? "var(--bg)" : githubRepo ? "var(--ink)" : "var(--ink-dim)",
-            fontFamily: "var(--display)",
-            fontWeight: 600,
-            fontSize: 12,
-            letterSpacing: "0.06em",
-            cursor: githubRepo ? "pointer" : "not-allowed",
-            opacity: githubRepo ? 1 : 0.4,
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-          disabled={!githubRepo}
-          title={!githubRepo ? "Connect a GitHub repo in the section above first" : undefined}
-        >
-          ◈ Use Connected GitHub Repo
-        </button>
-      </div>
-
-      <div className="deliver-zone">
-        <div className="deliver-left">
-          {sourceMode === "github" ? (
-            <div className="upload-target filled" style={{ cursor: "default" }}>
-              <div className="ut-pulse-ring r1" />
-              <div className="ut-pulse-ring r2" />
-              <div className="ut-pulse-ring r3" />
-              <div className="ut-scan" />
-              <div className="ut-filled-content">
-                <div className="ut-ok-icon">◈</div>
-                <div className="ut-filled-name">{githubRepo}</div>
-                <div className="ut-filled-meta">GitHub repo · ready for analysis</div>
-              </div>
-            </div>
-          ) : (
-            <div
-              className={
-                "upload-target" + (codebase ? " filled" : "") + (dragOver ? " drag-over" : "")
-              }
-              onClick={() => !codebase && setUploadModalOpen(true)}
-              onDragEnter={(e) => {
-                e.preventDefault();
-                if (!codebase) setDragOver(true);
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (!codebase) setDragOver(true);
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                const file = e.dataTransfer.files[0];
-                if (file) attachFile(file);
-              }}
-            >
-              <div className="ut-pulse-ring r1" />
-              <div className="ut-pulse-ring r2" />
-              <div className="ut-pulse-ring r3" />
-              <div className="ut-scan" />
+          {/* Zip panel */}
+          {sourceMode === "zip" && (
+            <div style={{ marginBottom: 20 }}>
               {codebase ? (
-                <div className="ut-filled-content">
-                  <div className="ut-ok-icon">✓</div>
-                  <div className="ut-filled-name">{codebase.name}</div>
-                  <div className="ut-filled-meta">
-                    {fmtBytes(codebase.size)} · ready for analysis
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "14px 16px",
+                    border: "1px solid var(--line)",
+                    borderRadius: 6,
+                    background: "var(--panel)",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontFamily: "var(--mono)",
+                        color: "var(--ink)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {codebase.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--ink-mute)", marginTop: 2 }}>
+                      {fmtBytes(codebase.size)} · ready for analysis
+                    </div>
                   </div>
                   <button
-                    className="ut-replace-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setUploadModalOpen(true);
-                    }}
+                    className="btn"
+                    style={{ fontSize: 11, flexShrink: 0 }}
+                    onClick={() => setCodebase(null)}
                   >
-                    Replace file
+                    Remove
                   </button>
                 </div>
               ) : (
-                <div className="ut-idle-content">
-                  <div className="ut-icon">⇪</div>
-                  <div className="ut-title">Drop .zip Archive</div>
-                  <div className="ut-hint">
-                    or <span className="ut-browse">click to browse</span> · max 50 MB
+                <div
+                  style={{
+                    border: `1px dashed ${dragOver ? "var(--ink)" : "var(--line)"}`,
+                    borderRadius: 6,
+                    padding: "36px 24px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    transition: "border-color 0.15s, background 0.15s",
+                    background: dragOver ? "var(--panel)" : "transparent",
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const f = e.dataTransfer.files[0];
+                    if (f) attachFile(f);
+                  }}
+                >
+                  <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.5 }}>⇪</div>
+                  <div
+                    style={{
+                      fontFamily: "var(--display)",
+                      fontWeight: 600,
+                      fontSize: 12,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                      color: "var(--ink)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Drop .zip archive here
                   </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-dim)" }}>
+                    or{" "}
+                    <span style={{ textDecoration: "underline", cursor: "pointer" }}>
+                      click to browse
+                    </span>{" "}
+                    · max 50 MB
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) attachFile(f);
+                      e.target.value = "";
+                    }}
+                  />
                 </div>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip,application/zip,application/x-zip-compressed"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) attachFile(file);
-                  e.target.value = "";
-                }}
-              />
             </div>
           )}
 
-          <div className="ut-meta-row">
-            {sourceMode === "github" ? (
-              <>
-                <span className="ut-meta-chip">
-                  <b>Source</b> GitHub
-                </span>
-                <span className="ut-meta-chip status ok">
-                  <span className="ut-dot" />
-                  Repo connected
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="ut-meta-chip">
-                  <b>Format</b> .zip
-                </span>
-                <span className="ut-meta-chip">
-                  <b>Max</b> 50 MB
-                </span>
-                <span className={"ut-meta-chip status" + (codebase ? " ok" : "")}>
-                  <span className="ut-dot" />
-                  {codebase ? "Archive ready" : "Awaiting upload"}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="deliver-right">
-          <div className="dr-head">
-            <span className="dr-label">▸ ANALYSIS ENGINE</span>
-            <span className="dr-status">
-              <span className="dot" />
-              READY
-            </span>
-          </div>
-
-          <div className="terminal-feed">
-            <TerminalLine delay={80}>vector index initialised · 1536-dim</TerminalLine>
-            <TerminalLine delay={280}>semantic chunker · active</TerminalLine>
-            <TerminalLine delay={480}>requirement parser · loaded</TerminalLine>
-            <TerminalLine delay={680}>escrow verifier · on-chain link</TerminalLine>
-            <TerminalLine delay={880}>llm grader · claude-sonnet-4-6</TerminalLine>
-            <TerminalLine delay={1080}>
-              {hasAnalyses
-                ? `stored analyses loaded · ${analyses.length} snapshot${analyses.length === 1 ? "" : "s"}`
-                : sourceMode === "github"
-                  ? "awaiting repository analysis_"
-                  : "awaiting archive upload_"}
-              <span className="term-cursor" />
-            </TerminalLine>
-          </div>
-
-          <div className="engine-features">
-            {[
-              {
-                icon: "◈",
-                title: "Semantic Code Search",
-                desc: "RAG over your entire codebase — no file left unread",
-              },
-              {
-                icon: "⟁",
-                title: "Requirement Mapping",
-                desc: "Each spec line matched to specific evidence in code",
-              },
-              {
-                icon: "◎",
-                title: "Confidence Scoring",
-                desc: "Per-requirement confidence with pass / partial / fail",
-              },
-              {
-                icon: "⬡",
-                title: "Stored Report History",
-                desc: "Each analysis stays attached to the milestone for later review",
-              },
-            ].map((feature, i) => (
+          {/* GitHub panel */}
+          {sourceMode === "github" && (
+            <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Header row */}
               <div
-                className="ef-item"
-                key={feature.title}
-                style={{ animationDelay: `${i * 120}ms` }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
               >
-                <span className="ef-icon">{feature.icon}</span>
-                <div>
-                  <div className="ef-title">{feature.title}</div>
-                  <div className="ef-desc">{feature.desc}</div>
-                </div>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "var(--ink-dim)",
+                    fontFamily: "var(--display)",
+                  }}
+                >
+                  Repositories accessible via GitHub App
+                </span>
+                <button
+                  className="btn"
+                  style={{ fontSize: 11 }}
+                  onClick={() => {
+                    const state = JSON.stringify({ milestoneRedirect: window.location.pathname });
+                    window.location.href = buildGithubAppInstallUrl(state);
+                  }}
+                >
+                  Grant access ↗
+                </button>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      <div className="feature-strip">
-        {[
-          { stat: "RAG", label: "Retrieval-augmented grading" },
-          { stat: "LLM", label: "Stored milestone analyses" },
-          { stat: "AUDIT", label: "Requirement-level evidence" },
-          { stat: "< 2m", label: "Typical analysis time" },
-        ].map((card, i) => (
-          <div className="fs-card" key={card.stat} style={{ animationDelay: `${i * 80}ms` }}>
-            <div className="fs-stat">{card.stat}</div>
-            <div className="fs-label">{card.label}</div>
-          </div>
-        ))}
-      </div>
+              {/* Currently linked repo */}
+              {githubRepo && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 14px",
+                    border: "1px solid var(--neon)",
+                    borderRadius: 6,
+                    background: "var(--neon-bg)",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--neon)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      flex: 1,
+                      fontFamily: "var(--mono)",
+                      fontSize: 13,
+                      color: "var(--ink)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {githubRepo}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: "var(--neon)",
+                      fontFamily: "var(--display)",
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    LINKED
+                  </span>
+                </div>
+              )}
 
-      {error && (
-        <div className="deliver-error">
-          <b>Error:</b> {error}
-        </div>
+              {/* Repo loader / list */}
+              {reposLoading ? (
+                <div style={{ fontSize: 12, color: "var(--ink-dim)", padding: "8px 0" }}>
+                  Loading repositories…
+                </div>
+              ) : reposError ? (
+                <div style={{ fontSize: 12, color: "var(--red)", padding: "6px 0" }}>
+                  {reposError}
+                </div>
+              ) : repos.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--ink-dim)", padding: "8px 0" }}>
+                  No repositories found. Grant the app access to your repos first.
+                </div>
+              ) : (
+                <>
+                  {/* Search */}
+                  <input
+                    className="form-input"
+                    placeholder="Search repositories…"
+                    value={repoSearch}
+                    onChange={(e) => {
+                      setRepoSearch(e.target.value);
+                      setRepoPage(1);
+                    }}
+                    style={{ fontSize: 12 }}
+                  />
+
+                  {/* Repo rows */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {pagedRepos.length === 0 ? (
+                      <div style={{ fontSize: 12, color: "var(--ink-dim)", padding: "8px 0" }}>
+                        No results for "{repoSearch}".
+                      </div>
+                    ) : (
+                      pagedRepos.map((repo) => (
+                        <button
+                          key={repo.id}
+                          onClick={() =>
+                            setSelectedRepo((prev) => (prev?.id === repo.id ? null : repo))
+                          }
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            padding: "10px 14px",
+                            border: `1px solid ${selectedRepo?.id === repo.id ? "var(--ink)" : "var(--line)"}`,
+                            borderRadius: 6,
+                            background:
+                              selectedRepo?.id === repo.id ? "var(--panel)" : "transparent",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            width: "100%",
+                            transition: "border-color 0.15s, background 0.15s",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: repo.private ? "var(--ink-dim)" : "var(--neon)",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              flex: 1,
+                              fontFamily: "var(--mono)",
+                              fontSize: 13,
+                              color: "var(--ink)",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {repo.full_name}
+                          </span>
+                          {repo.private && (
+                            <span style={{ fontSize: 10, color: "var(--ink-dim)", flexShrink: 0 }}>
+                              private
+                            </span>
+                          )}
+                          {repo.language && (
+                            <span style={{ fontSize: 10, color: "var(--ink-dim)", flexShrink: 0 }}>
+                              {repo.language}
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Pagination */}
+                  {totalRepoPages > 1 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <button
+                        className="btn"
+                        style={{ fontSize: 11, padding: "3px 10px" }}
+                        disabled={currentRepoPage <= 1}
+                        onClick={() => setRepoPage((p) => p - 1)}
+                      >
+                        ← Prev
+                      </button>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "var(--ink-dim)",
+                          fontFamily: "var(--display)",
+                        }}
+                      >
+                        {currentRepoPage} / {totalRepoPages}
+                      </span>
+                      <button
+                        className="btn"
+                        style={{ fontSize: 11, padding: "3px 10px" }}
+                        disabled={currentRepoPage >= totalRepoPages}
+                        onClick={() => setRepoPage((p) => p + 1)}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Submit selected repo */}
+              {selectedRepo && onRepoSubmit && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 10,
+                    paddingTop: 10,
+                    borderTop: "1px solid var(--line)",
+                  }}
+                >
+                  {repoSubmitError && (
+                    <span style={{ fontSize: 11, color: "var(--red)" }}>{repoSubmitError}</span>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    style={{ fontSize: 12 }}
+                    disabled={repoSubmitting}
+                    onClick={async () => {
+                      setRepoSubmitting(true);
+                      setRepoSubmitError(null);
+                      try {
+                        await onRepoSubmit(selectedRepo.html_url);
+                        setSelectedRepo(null);
+                      } catch (e) {
+                        setRepoSubmitError(
+                          e instanceof Error ? e.message : "Failed to submit repo.",
+                        );
+                      } finally {
+                        setRepoSubmitting(false);
+                      }
+                    }}
+                  >
+                    {repoSubmitting ? "Submitting…" : `Use ${selectedRepo.name} →`}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="deliver-error">
+              <b>Error:</b> {error}
+            </div>
+          )}
+
+          {analysisFetchError && (
+            <div className="deliver-error" style={{ marginTop: 16 }}>
+              <b>History refresh:</b> {analysisFetchError}
+            </div>
+          )}
+
+          <div className="cta-row">
+            <div className="cta-meta">
+              <div className={"item " + (codebaseOk ? "ok" : "no")}>
+                <span className="chk">{codebaseOk ? "✓" : ""}</span>{" "}
+                {sourceMode === "github" ? "GITHUB REPO" : "ARCHIVE"}
+              </div>
+              <div className="item ok">
+                <span className="chk">✓</span> ESCROW LOCKED
+              </div>
+              <div className={"item " + (hasAnalyses ? "ok" : "no")}>
+                <span className="chk">{hasAnalyses ? "✓" : ""}</span> STORED ANALYSIS
+              </div>
+            </div>
+            <div className="cta-hint" style={{ marginTop: 4 }}>
+              {codebaseOk
+                ? "Code submitted · consumer can now run analysis"
+                : "Connect a GitHub repo or upload a ZIP to submit your codebase"}
+            </div>
+          </div>
+        </>
       )}
 
-      {analysisFetchError && (
-        <div className="deliver-error" style={{ marginTop: 16 }}>
-          <b>History refresh:</b> {analysisFetchError}
-        </div>
+      {/* ── Consumer UI ── */}
+      {!isProvider && (
+        <>
+          <div className="deliver-zone" style={{ marginBottom: 20 }}>
+            <div className="deliver-left">
+              {githubRepo ? (
+                <div className="upload-target filled" style={{ cursor: "default" }}>
+                  <div className="ut-pulse-ring r1" />
+                  <div className="ut-pulse-ring r2" />
+                  <div className="ut-pulse-ring r3" />
+                  <div className="ut-scan" />
+                  <div className="ut-filled-content">
+                    <div className="ut-ok-icon">◈</div>
+                    <div className="ut-filled-name">{githubRepo}</div>
+                    <div className="ut-filled-meta">GitHub repo · submitted by provider</div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    border: "1px dashed var(--line)",
+                    borderRadius: 8,
+                    padding: "32px 24px",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 14,
+                    background: "var(--panel)",
+                    textAlign: "center",
+                    position: "relative",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      border: "2px solid var(--line)",
+                      borderTopColor: "var(--ink-dim)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      animation: "spin 2.4s linear infinite",
+                      opacity: 0.55,
+                    }}
+                  />
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "var(--display)",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "var(--ink)",
+                        marginBottom: 6,
+                      }}
+                    >
+                      {hasAnalyses ? "Code analyzed via ZIP" : "Awaiting provider submission"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--ink-dim)", maxWidth: 320 }}>
+                      {hasAnalyses
+                        ? "Provider submitted a ZIP archive — view stored analyses below"
+                        : "The provider must connect a GitHub repo or upload a ZIP archive before you can run analysis."}
+                    </div>
+                  </div>
+                  {!hasAnalyses && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {["GitHub repo", "ZIP archive"].map((label) => (
+                        <span
+                          key={label}
+                          style={{
+                            fontSize: 11,
+                            fontFamily: "var(--display)",
+                            fontWeight: 600,
+                            letterSpacing: "0.06em",
+                            color: "var(--ink-mute)",
+                            border: "1px solid var(--line)",
+                            borderRadius: 4,
+                            padding: "3px 10px",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="ut-meta-row">
+                {githubRepo ? (
+                  <>
+                    <span className="ut-meta-chip">
+                      <b>Source</b> GitHub
+                    </span>
+                    <span className="ut-meta-chip status ok">
+                      <span className="ut-dot" />
+                      Repo connected
+                    </span>
+                  </>
+                ) : (
+                  <span className={"ut-meta-chip status" + (hasAnalyses ? " ok" : "")}>
+                    <span className="ut-dot" />
+                    {hasAnalyses ? "ZIP analyzed" : "No code submitted yet"}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="deliver-error">
+              <b>Error:</b> {error}
+            </div>
+          )}
+
+          {analysisFetchError && (
+            <div className="deliver-error" style={{ marginTop: 16 }}>
+              <b>History refresh:</b> {analysisFetchError}
+            </div>
+          )}
+
+          <div className="cta-row">
+            <div className="cta-meta">
+              <div className={"item " + (githubRepo ? "ok" : "no")}>
+                <span className="chk">{githubRepo ? "✓" : ""}</span> CODE SOURCE
+              </div>
+              <div className="item ok">
+                <span className="chk">✓</span> ESCROW LOCKED
+              </div>
+              <div className={"item " + (hasAnalyses ? "ok" : "no")}>
+                <span className="chk">{hasAnalyses ? "✓" : ""}</span> STORED ANALYSIS
+              </div>
+            </div>
+            <button
+              className="btn-generate"
+              disabled={!githubRepo}
+              onClick={runAnalysis}
+              title={
+                !githubRepo
+                  ? hasAnalyses
+                    ? "Provider submitted via ZIP — view stored analyses below"
+                    : "Waiting for provider to submit code"
+                  : undefined
+              }
+            >
+              {hasAnalyses ? "Run New Analysis" : "Run Analysis"}
+              <span className="ar">→</span>
+            </button>
+            <div className="cta-hint">
+              {githubRepo
+                ? "LLM-powered · semantic analysis · 30–120 seconds"
+                : hasAnalyses
+                  ? "Provider submitted code via ZIP — re-analysis requires a connected GitHub repo"
+                  : "Waiting for provider to submit a GitHub repo or ZIP archive"}
+            </div>
+          </div>
+        </>
       )}
 
-      <div className="cta-row">
-        <div className="cta-meta">
-          <div className={"item " + (codebaseOk ? "ok" : "no")}>
-            <span className="chk">{codebaseOk ? "✓" : ""}</span>{" "}
-            {sourceMode === "github" ? "GITHUB REPO" : "ARCHIVE"}
-          </div>
-          <div className="item ok">
-            <span className="chk">✓</span> ESCROW LOCKED
-          </div>
-          <div className={"item " + (hasAnalyses ? "ok" : "no")}>
-            <span className="chk">{hasAnalyses ? "✓" : ""}</span> STORED ANALYSIS
-          </div>
-        </div>
-        <button className="btn-generate" disabled={!codebaseOk} onClick={runAnalysis}>
-          {hasAnalyses ? "Generate New Report" : "Generate Report"}
-          <span className="ar">→</span>
-        </button>
-        <div className="cta-hint">LLM-powered · semantic analysis · 30–120 seconds</div>
-      </div>
-
+      {/* ── Analysis history ── */}
       <div className="analysis-history">
         <div className="section-h" style={{ marginBottom: 14 }}>
           <span>▸ STORED ANALYSES</span>
@@ -924,7 +1168,7 @@ export default function CodeReport({
         ) : hasAnalyses ? (
           <div className="analysis-list">
             {analyses.map((analysis, index) => {
-              const score = Math.round(analysis.summary.overallScore);
+              const score = Math.round(analysis.overallScore);
               const isLatest = index === 0;
               return (
                 <button
@@ -957,14 +1201,14 @@ export default function CodeReport({
 
                   <div className="analysis-card-stats">
                     <span>{getVerdictLabel(score)}</span>
-                    <span>{fmtCount(analysis.summary.totalRequirements)} requirements</span>
-                    <span>{fmtCount(analysis.summary.codeFilesAnalyzed)} files analyzed</span>
+                    <span>{fmtCount(analysis.totalRequirements)} requirements</span>
+                    <span>{fmtCount(analysis.codeFilesAnalyzed)} files analyzed</span>
                   </div>
 
                   <div className="analysis-card-breakdown">
-                    <span className="pass">{fmtCount(analysis.summary.passed)} passed</span>
-                    <span className="partial">{fmtCount(analysis.summary.partial)} partial</span>
-                    <span className="fail">{fmtCount(analysis.summary.failed)} failed</span>
+                    <span className="pass">{fmtCount(analysis.passed)} passed</span>
+                    <span className="partial">{fmtCount(analysis.partial)} partial</span>
+                    <span className="fail">{fmtCount(analysis.failed)} failed</span>
                   </div>
                 </button>
               );
@@ -978,7 +1222,7 @@ export default function CodeReport({
         )}
       </div>
 
-      {latestAnalysis && (
+      {latestAnalysis && !isProvider && (
         <div className="analysis-actions">
           <div>
             <div className="analysis-actions-title">Consumer actions</div>
@@ -988,7 +1232,12 @@ export default function CodeReport({
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn" type="button" onClick={() => setActiveAnalysis(latestAnalysis)}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => setActiveAnalysis(latestAnalysis)}
+              disabled={isDisabled}
+            >
               Open latest analysis
             </button>
             <button
@@ -1006,63 +1255,41 @@ export default function CodeReport({
                   setReleaseLoading(false);
                 }
               }}
-              disabled={releaseLoading}
+              disabled={releaseLoading || isDisabled}
             >
               {releaseLoading ? "Releasing funds…" : "Release funds"}
             </button>
+            {onDispute && (
+              <button
+                className="btn btn-danger"
+                onClick={async () => {
+                  setDisputeLoading(true);
+                  setDisputeError(null);
+                  try {
+                    await onDispute();
+                  } catch (err) {
+                    setDisputeError(
+                      err instanceof Error ? err.message : "Failed to dispute milestone.",
+                    );
+                  } finally {
+                    setDisputeLoading(false);
+                  }
+                }}
+                disabled={disputeLoading || isDisabled}
+              >
+                {disputeLoading ? "Disputing…" : "Dispute"}
+              </button>
+            )}
           </div>
+          {disputeError && (
+            <div className="auth-error" style={{ marginTop: 8 }}>
+              {disputeError}
+            </div>
+          )}
         </div>
       )}
 
       {releaseError && <div className="auth-error">{releaseError}</div>}
-
-      <Modal
-        open={uploadModalOpen}
-        onClose={() => {
-          setUploadModalOpen(false);
-          setStagedCodebase(null);
-        }}
-        tag="INPUT 01"
-        title="Codebase Archive"
-        footer={
-          <div className="modal-foot">
-            <div>{stagedCodebase ? "1 archive ready" : "No file selected"}</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="btn"
-                onClick={() => {
-                  setUploadModalOpen(false);
-                  setStagedCodebase(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                disabled={!stagedCodebase}
-                onClick={() => {
-                  if (stagedCodebase) attachFile(stagedCodebase);
-                }}
-              >
-                Attach Archive
-              </button>
-            </div>
-          </div>
-        }
-      >
-        <DropArea
-          icon="⇪"
-          title="Drop .zip archive here"
-          hint="one file · max 50 MB"
-          accept=".zip,application/zip,application/x-zip-compressed"
-          onFiles={(files) => setStagedCodebase(files[0])}
-        />
-        <div className="modal-filelist">
-          {stagedCodebase && (
-            <FileRow file={stagedCodebase} onRemove={() => setStagedCodebase(null)} />
-          )}
-        </div>
-      </Modal>
 
       <Modal
         open={!!activeAnalysis}
@@ -1078,25 +1305,27 @@ export default function CodeReport({
                 <button className="btn" onClick={() => setActiveAnalysis(null)}>
                   Close
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={async () => {
-                    setReleaseLoading(true);
-                    setReleaseError(null);
-                    try {
-                      await onReleaseFunds();
-                    } catch (err) {
-                      setReleaseError(
-                        err instanceof Error ? err.message : "Failed to release milestone funds.",
-                      );
-                    } finally {
-                      setReleaseLoading(false);
-                    }
-                  }}
-                  disabled={releaseLoading}
-                >
-                  {releaseLoading ? "Releasing funds…" : "Release funds"}
-                </button>
+                {!isProvider && (
+                  <button
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      setReleaseLoading(true);
+                      setReleaseError(null);
+                      try {
+                        await onReleaseFunds();
+                      } catch (err) {
+                        setReleaseError(
+                          err instanceof Error ? err.message : "Failed to release milestone funds.",
+                        );
+                      } finally {
+                        setReleaseLoading(false);
+                      }
+                    }}
+                    disabled={releaseLoading}
+                  >
+                    {releaseLoading ? "Releasing funds…" : "Release funds"}
+                  </button>
+                )}
               </div>
             </div>
           ) : null

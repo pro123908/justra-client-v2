@@ -13,14 +13,16 @@
       "discriminator": [216, 92, 128, 146, 202, 85, 135, 73],
       "accounts": [
         {
+          "name": "initiator",
+          "docs": ["The party raising the dispute — must be either provider or consumer"],
+          "signer": true
+        },
+        {
           "name": "provider",
-          "docs": ["Provider raises the dispute"],
-          "signer": true,
           "relations": ["milestone_pda"]
         },
         {
           "name": "consumer",
-          "docs": ["Consumer is not a signer here but is needed as a PDA seed"],
           "relations": ["milestone_pda"]
         },
         {

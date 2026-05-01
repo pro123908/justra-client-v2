@@ -156,6 +156,11 @@ export type ReleaseMilestoneFundsParams = {
   provider: PublicKey;
 };
 
+export type DisputeMilestoneParams = {
+  milestoneId: string;
+  provider: PublicKey;
+};
+
 /**
  * Consumer deposits SOL and creates the on-chain milestone escrow.
  * The connected Phantom wallet is treated as the consumer / signer.
@@ -183,7 +188,49 @@ export async function initializeMilestone(params: InitializeMilestoneParams): Pr
 
     return sig;
   } catch (e) {
+    // Anchor retries timed-out transactions; if the retry hits an already-confirmed
+    // tx the RPC throws "already been processed" — that means the first attempt
+    // succeeded and the on-chain state is correct, so treat it as success.
+    if (e instanceof Error && e.message.includes("already been processed")) {
+      console.warn("initializeMilestone: tx already processed, treating as success");
+      return "already-processed";
+    }
     console.error("Error initializing milestone:", e);
+    throw e;
+  }
+}
+
+/**
+ * Raises a dispute on an active milestone, freezing the escrow for arbitration.
+ * Per the IDL the provider must sign — the connected wallet must be the provider.
+ *
+ * @returns the confirmed transaction signature
+ */
+export async function disputeMilestone(params: DisputeMilestoneParams): Promise<string> {
+  const { milestoneId, provider } = params;
+
+  const program = getEscrowProgram();
+  const consumer = getWalletPublicKey();
+  const normalizedId = normalizeMilestoneId(milestoneId);
+  const [pda] = milestonePda(consumer, provider, normalizedId);
+
+  try {
+    const sig = await program.methods
+      .dispute()
+      .accounts({
+        provider,
+        consumer,
+        milestonePda: pda,
+      })
+      .rpc();
+
+    return sig;
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("already been processed")) {
+      console.warn("disputeMilestone: tx already processed, treating as success");
+      return "already-processed";
+    }
+    console.error("Error disputing milestone:", e);
     throw e;
   }
 }
@@ -215,13 +262,14 @@ export async function releaseMilestoneFunds(params: ReleaseMilestoneFundsParams)
 
     return sig;
   } catch (e) {
-    console.error("Error releasing milestone funds:", e);
-
-    if (e instanceof SendTransactionError) {
-      const connection = getConnection();
-      const logs = await e.getLogs(connection);
-      console.error("Transaction error logs:", logs);
+    // Anchor retries timed-out transactions; if the retry hits an already-confirmed
+    // tx the RPC throws "already been processed" — that means the first attempt
+    // succeeded and the on-chain state is correct, so treat it as success.
+    if (e instanceof Error && e.message.includes("already been processed")) {
+      console.warn("initializeMilestone: tx already processed, treating as success");
+      return "already-processed";
     }
+    console.error("Error initializing milestone:", e);
     throw e;
   }
 }
