@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
+import { formatSol } from "@/lib/utils";
 import {
   milestoneApi,
   MilestoneStatus,
@@ -407,14 +408,14 @@ function MilestoneDetailPage() {
                   </div>
                   <h3 className="deposit-title">Fund this milestone to start work</h3>
                   <p className="deposit-sub">
-                    The provider has accepted the milestone. Lock <b>◎ {milestone.amount}</b> SOL
+                    The provider has accepted the milestone. Lock <b>◎ {formatSol(milestone.amount)}</b> SOL
                     into the escrow PDA so the developer can begin. Funds release only after you
                     approve the delivery.
                   </p>
                 </div>
                 <div className="deposit-amount-card">
                   <span className="lbl">Amount due</span>
-                  <span className="val">◎ {milestone.amount}</span>
+                  <span className="val">◎ {formatSol(milestone.amount)}</span>
                   <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
                 </div>
               </div>
@@ -436,7 +437,7 @@ function MilestoneDetailPage() {
               </div>
               <div className="deposit-actions">
                 <button className="btn btn-primary" onClick={handleStartDeposit}>
-                  Fund milestone — ◎ {milestone.amount} SOL / ${fiatTotal}
+                  Fund milestone — ◎ {formatSol(milestone.amount)} SOL / ${fiatTotal}
                 </button>
                 <span className="deposit-hint">
                   Choose to pay with crypto (SOL) or fiat (card).
@@ -472,7 +473,7 @@ function MilestoneDetailPage() {
                 ▸ Milestone disputed · escrow frozen
               </div>
               <p style={{ margin: 0, fontSize: 13, color: "var(--ink-mute)" }}>
-                This milestone has been disputed. ◎ {milestone.amount} SOL remains locked in the
+                This milestone has been disputed. ◎ {formatSol(milestone.amount)} SOL remains locked in the
                 escrow PDA pending arbitration. No further actions are available until the dispute
                 is resolved.
               </p>
@@ -482,7 +483,7 @@ function MilestoneDetailPage() {
           <div className="ms-hero">
             <div className="ms-hero-amount">
               <span className="lbl">Escrow value</span>
-              <span className="val">◎ {milestone.amount || "0"}</span>
+              <span className="val">◎ {formatSol(milestone.amount) || "0"}</span>
               <span className="sub">SOL · locked on approval</span>
             </div>
             <div className="ms-hero-status">
@@ -872,7 +873,7 @@ function MilestoneDetailPage() {
                       <span className="pmc-tag">recommended</span>
                     </div>
                     <div className="pmc-title">Pay with SOL</div>
-                    <div className="pmc-amount">◎ {milestone.amount}</div>
+                    <div className="pmc-amount">◎ {formatSol(milestone.amount)}</div>
                     <div className="pmc-sub">
                       Sign with Phantom · funds locked on-chain in escrow PDA
                     </div>
@@ -937,7 +938,7 @@ function MilestoneDetailPage() {
                   </div>
                   <div className="row total">
                     <span>Total to lock</span>
-                    <b>◎ {milestone.amount} SOL</b>
+                    <b>◎ {formatSol(milestone.amount)} SOL</b>
                   </div>
                 </div>
                 <p className="deposit-disclaimer">
@@ -964,7 +965,7 @@ function MilestoneDetailPage() {
                   </div>
                   <div className="row">
                     <span>Amount (SOL)</span>
-                    <b className="mono">◎ {milestone.amount}</b>
+                    <b className="mono">◎ {formatSol(milestone.amount)}</b>
                   </div>
                   <div className="row">
                     <span>Rate</span>
@@ -1076,8 +1077,8 @@ function MilestoneDetailPage() {
                 </div>
                 <div className="deposit-progress-sub">
                   {depositMethod === "fiat"
-                    ? `$${fiatTotal} charged. ◎ ${milestone.amount} SOL has been locked in escrow. The provider can now begin work.`
-                    : `◎ ${milestone.amount} SOL locked in escrow. The provider can now begin work on this milestone.`}
+                    ? `$${fiatTotal} charged. ◎ ${formatSol(milestone.amount)} SOL has been locked in escrow. The provider can now begin work.`
+                    : `◎ ${formatSol(milestone.amount)} SOL locked in escrow. The provider can now begin work on this milestone.`}
                 </div>
                 {depositTxSig && (
                   <div className="deposit-tx">
@@ -1170,7 +1171,7 @@ function ActiveMilestoneBand({
             {overdue ? "Delivery window overdue" : "Time remaining to deliver"}
           </h3>
           <p className="active-sub">
-            ◎ {amount} SOL is locked in escrow. The provider must ship the codebase &amp; spec
+            ◎ {formatSol(amount)} SOL is locked in escrow. The provider must ship the codebase &amp; spec
             before the deadline to claim the funds.
           </p>
         </div>

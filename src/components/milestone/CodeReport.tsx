@@ -561,6 +561,7 @@ export default function CodeReport({
             {(["zip", "github"] as const).map((mode) => (
               <button
                 key={mode}
+                disabled={isDisabled}
                 onClick={() => setSourceMode(mode)}
                 style={{
                   padding: "8px 18px",
@@ -630,18 +631,19 @@ export default function CodeReport({
                     borderRadius: 6,
                     padding: "36px 24px",
                     textAlign: "center",
-                    cursor: "pointer",
+                    cursor: isDisabled ? "not-allowed" : "pointer",
                     transition: "border-color 0.15s, background 0.15s",
                     background: dragOver ? "var(--panel)" : "transparent",
+                    opacity: isDisabled ? 0.5 : 1,
                   }}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => { if (!isDisabled) fileInputRef.current?.click(); }}
                   onDragEnter={(e) => {
                     e.preventDefault();
-                    setDragOver(true);
+                    if (!isDisabled) setDragOver(true);
                   }}
                   onDragOver={(e) => {
                     e.preventDefault();
-                    setDragOver(true);
+                    if (!isDisabled) setDragOver(true);
                   }}
                   onDragLeave={(e) => {
                     e.preventDefault();
@@ -650,6 +652,7 @@ export default function CodeReport({
                   onDrop={(e) => {
                     e.preventDefault();
                     setDragOver(false);
+                    if (isDisabled) return;
                     const f = e.dataTransfer.files[0];
                     if (f) attachFile(f);
                   }}
@@ -715,6 +718,7 @@ export default function CodeReport({
                 <button
                   className="btn"
                   style={{ fontSize: 11 }}
+                  disabled={isDisabled}
                   onClick={() => {
                     const state = JSON.stringify({ milestoneRedirect: window.location.pathname });
                     window.location.href = buildGithubAppInstallUrl(state);
@@ -810,6 +814,7 @@ export default function CodeReport({
                       pagedRepos.map((repo) => (
                         <button
                           key={repo.id}
+                          disabled={isDisabled}
                           onClick={() =>
                             setSelectedRepo((prev) => (prev?.id === repo.id ? null : repo))
                           }
@@ -923,7 +928,7 @@ export default function CodeReport({
                   <button
                     className="btn btn-primary"
                     style={{ fontSize: 12 }}
-                    disabled={repoSubmitting}
+                    disabled={repoSubmitting || isDisabled}
                     onClick={async () => {
                       setRepoSubmitting(true);
                       setRepoSubmitError(null);
@@ -1126,7 +1131,7 @@ export default function CodeReport({
             </div>
             <button
               className="btn-generate"
-              disabled={!githubRepo}
+              disabled={!githubRepo || isDisabled}
               onClick={runAnalysis}
               title={
                 !githubRepo
@@ -1321,7 +1326,7 @@ export default function CodeReport({
                         setReleaseLoading(false);
                       }
                     }}
-                    disabled={releaseLoading}
+                    disabled={releaseLoading || isDisabled}
                   >
                     {releaseLoading ? "Releasing funds…" : "Release funds"}
                   </button>

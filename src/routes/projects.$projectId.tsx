@@ -4,6 +4,7 @@ import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
 import { useAuth } from "@/lib/auth";
+import { formatSol } from "@/lib/utils";
 import {
   projectApi,
   inviteApi,
@@ -305,7 +306,7 @@ function ProjectDetailPage() {
                   <span>→ {fmtDate(m.endDate)}</span>
                 </div>
                 <div className="ms-amount">
-                  <b>◎ {m.amount || "—"}</b>
+                  <b>◎ {m.amount ? formatSol(m.amount) : "—"}</b>
                   <span>SOL</span>
                 </div>
               </button>
