@@ -181,7 +181,7 @@ export const inviteApi = {
 };
 
 export interface ChatMessage {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 }
 
@@ -267,21 +267,17 @@ export const projectApi = {
 export const projectDocApi = {
   upload: (token: string, file: File): Promise<UploadDocResponse> => {
     const form = new FormData();
-    form.append('document', file);
-    return apiFetch<UploadDocResponse>('/project/upload-doc', {
-      method: 'POST',
+    form.append("document", file);
+    return apiFetch<UploadDocResponse>("/project/upload-doc", {
+      method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
   },
 
-  chat: (
-    token: string,
-    docId: string,
-    messages: ChatMessage[],
-  ): Promise<ChatDocResponse> =>
-    apiFetch<ChatDocResponse>('/project/chat', {
-      method: 'POST',
+  chat: (token: string, docId: string, messages: ChatMessage[]): Promise<ChatDocResponse> =>
+    apiFetch<ChatDocResponse>("/project/chat", {
+      method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ docId, messages }),
     }),

@@ -38,10 +38,17 @@ function DashboardPage() {
 
   useEffect(() => {
     if (!token || !user?.githubUsername) return;
-    githubApi.checkInstallation(token).then((res) => {
-      setHasInstallation(res.hasInstallation);
-      setInstallationId((res as { hasInstallation: boolean; installationId?: string }).installationId ?? null);
-    }).catch(() => {/* ignore */});
+    githubApi
+      .checkInstallation(token)
+      .then((res) => {
+        setHasInstallation(res.hasInstallation);
+        setInstallationId(
+          (res as { hasInstallation: boolean; installationId?: string }).installationId ?? null,
+        );
+      })
+      .catch(() => {
+        /* ignore */
+      });
   }, [token, user?.githubUsername]);
 
   if (!user || !user.role) return null;
@@ -102,12 +109,15 @@ function DashboardPage() {
         {(!user.githubUsername || (user.githubUsername && hasInstallation === false)) && (
           <div className="github-connect-banner">
             <div className="github-connect-banner-text">
-              <div className="eyebrow" style={{ marginBottom: 6 }}>Optional · GitHub</div>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>
+                Optional · GitHub
+              </div>
               {!user.githubUsername ? (
                 <>
                   <h3 style={{ margin: 0, fontSize: 16 }}>Connect GitHub to verify deliverables</h3>
                   <p style={{ margin: "6px 0 0", color: "var(--ink-dim)", fontSize: 13 }}>
-                    Link your GitHub account to let providers submit repository links and confirm deliverables against milestone specs.
+                    Link your GitHub account to let providers submit repository links and confirm
+                    deliverables against milestone specs.
                   </p>
                 </>
               ) : (
@@ -122,9 +132,17 @@ function DashboardPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button
                 className="btn btn-primary"
-                onClick={() => { window.location.href = buildGithubAppInstallUrl(); }}
+                onClick={() => {
+                  window.location.href = buildGithubAppInstallUrl();
+                }}
               >
-                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style={{ marginRight: 6 }}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  width="14"
+                  height="14"
+                  style={{ marginRight: 6 }}
+                >
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
                 </svg>
                 {!user.githubUsername ? "Connect GitHub" : "Install GitHub App"}
@@ -318,6 +336,7 @@ function CreateProjectModal({
   const [name, setName] = useState("");
   const [docId, setDocId] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [approved, setApproved] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -353,11 +372,12 @@ function CreateProjectModal({
     setUploadError(null);
     setUploading(true);
     try {
-      const res = await projectDocApi.upload(token, file);
-      setDocId(res.docId);
-      setFileName(file.name);
-      setMessages([{ role: "assistant", content: res.initialMessage }]);
-      setApproved(res.approved);
+      // const res = await projectDocApi.upload(token, file);
+      // setDocId(res.docId);
+      // setFileName(file.name);
+      setFile(file);
+      // setMessages([{ role: "assistant", content: res.initialMessage }]);
+      // setApproved(res.approved);
       setStep(2);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
@@ -403,7 +423,10 @@ function CreateProjectModal({
     setCreating(true);
     setCreateError(null);
     try {
-      const p = await createProject({ name: name.trim(), description: "", docId: docId ?? undefined });
+      const p = await createProject({
+        name: name.trim(),
+        description: "",
+      });
       onCreated(p);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Failed to create project");
@@ -425,8 +448,16 @@ function CreateProjectModal({
         title="Define project"
         footer={
           <div className="modal-foot">
-            <div>{uploadError ? <span style={{ color: "red" }}>{uploadError}</span> : "Upload a project specification document"}</div>
-            <button className="btn" onClick={onClose}>Cancel</button>
+            <div>
+              {uploadError ? (
+                <span style={{ color: "red" }}>{uploadError}</span>
+              ) : (
+                "Upload a project specification document"
+              )}
+            </div>
+            <button className="btn" onClick={onClose}>
+              Cancel
+            </button>
           </div>
         }
       >
@@ -445,9 +476,19 @@ function CreateProjectModal({
             <label className="form-label">▸ Project specification document</label>
             <label
               className="form-input"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: uploading ? "not-allowed" : "pointer", minHeight: 80, textAlign: "center", opacity: uploading ? 0.6 : 1 }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: uploading ? "not-allowed" : "pointer",
+                minHeight: 80,
+                textAlign: "center",
+                opacity: uploading ? 0.6 : 1,
+              }}
             >
-              {uploading ? "Analyzing document…" : "Click to upload · PDF, DOCX, TXT, MD · max 10 MB"}
+              {uploading
+                ? "Analyzing document…"
+                : "Click to upload · PDF, DOCX, TXT, MD · max 10 MB"}
               <input
                 type="file"
                 accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
@@ -491,7 +532,9 @@ function CreateProjectModal({
             </span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn" onClick={onClose}>
+              Cancel
+            </button>
             <button
               className="btn btn-primary"
               disabled={!approved || !name.trim() || creating}
@@ -504,8 +547,18 @@ function CreateProjectModal({
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {createError && <div style={{ color: "red", fontSize: 12, marginTop: 4 }}>{createError}</div>}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--ink-dim)" }}>
+        {createError && (
+          <div style={{ color: "red", fontSize: 12, marginTop: 4 }}>{createError}</div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            fontSize: 13,
+            color: "var(--ink-dim)",
+          }}
+        >
           <span>📄 {fileName}</span>
           <button
             className="btn"
@@ -560,7 +613,12 @@ function CreateProjectModal({
             placeholder="Reply to the AI…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             disabled={sending}
           />
           <button
