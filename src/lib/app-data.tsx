@@ -30,7 +30,7 @@ type DataCtx = {
   memberProjects: Project[];
   myInvites: InviteResponse[];
   projectsLoading: boolean;
-  createProject: (input: { name: string; description: string }) => Promise<Project>;
+  createProject: (input: { name: string; description: string; docId?: string }) => Promise<Project>;
   updateProject: (id: string, input: { name?: string; description?: string }) => Promise<Project>;
   acceptInvite: (inviteId: string) => Promise<void>;
   projectsOwnedBy: (address: string) => Project[];
@@ -81,8 +81,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [token, user]);
 
-  const createProject: DataCtx["createProject"] = async ({ name, description }) => {
-    const r = await projectApi.create(token!, { title: name, description });
+  const createProject: DataCtx["createProject"] = async ({ name, description, docId }) => {
+    const r = await projectApi.create(token!, { title: name, description, docId });
     const p = mapProject(r);
     setProjects((curr) => [p, ...curr]);
     return p;
