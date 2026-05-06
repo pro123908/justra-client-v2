@@ -180,6 +180,22 @@ export const inviteApi = {
     }),
 };
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface UploadDocResponse {
+  docId: string;
+  initialMessage: string;
+  approved: boolean;
+}
+
+export interface ChatDocResponse {
+  reply: string;
+  approved: boolean;
+}
+
 export enum MilestoneStatus {
   PENDING_PROVIDER_APPROVAL = "pending_provider_approval",
   REJECTED = "rejected",
@@ -226,7 +242,7 @@ export const projectApi = {
       headers: { Authorization: `Bearer ${token}` },
     }),
 
-  create: (token: string, body: { title: string; description?: string }) =>
+  create: (token: string, body: { title: string; description?: string; docId?: string }) =>
     apiFetch<ProjectResponse>("/project", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -245,6 +261,29 @@ export const projectApi = {
     apiFetch<void>(`/project/${projectId}/members/${userId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
+    }),
+};
+
+export const projectDocApi = {
+  upload: (token: string, file: File): Promise<UploadDocResponse> => {
+    const form = new FormData();
+    form.append('document', file);
+    return apiFetch<UploadDocResponse>('/project/upload-doc', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+  },
+
+  chat: (
+    token: string,
+    docId: string,
+    messages: ChatMessage[],
+  ): Promise<ChatDocResponse> =>
+    apiFetch<ChatDocResponse>('/project/chat', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ docId, messages }),
     }),
 };
 
