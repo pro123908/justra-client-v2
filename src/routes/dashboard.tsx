@@ -442,6 +442,107 @@ function CreateProjectModal({
     );
   }
 
-  // Step 2 — chat UI added in Task 11
-  return null;
+  // Step 2 — chat
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      tag="NEW PROJECT"
+      title="Review with AI"
+      footer={
+        <div className="modal-foot">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: approved ? "var(--neon)" : "var(--ink-dim)",
+                display: "inline-block",
+              }}
+            />
+            <span style={{ fontSize: 13, color: approved ? "var(--neon)" : "var(--ink-dim)" }}>
+              {approved ? "Ready to create" : "Pending review"}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={onClose}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              disabled={!approved || !name.trim()}
+              onClick={handleCreate}
+            >
+              Create Project
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--ink-dim)" }}>
+          <span>📄 {fileName}</span>
+          <button
+            className="btn"
+            style={{ fontSize: 12, padding: "2px 10px" }}
+            onClick={handleReplaceDoc}
+          >
+            Replace document
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            maxHeight: 320,
+            overflowY: "auto",
+            padding: "8px 0",
+          }}
+        >
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "80%",
+                background: m.role === "user" ? "var(--neon)" : "var(--surface-2, #1a1a1a)",
+                color: m.role === "user" ? "#000" : "var(--ink)",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 13,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {m.content}
+            </div>
+          ))}
+          {sending && (
+            <div style={{ alignSelf: "flex-start", fontSize: 13, color: "var(--ink-dim)" }}>
+              Thinking…
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            className="form-input"
+            style={{ flex: 1 }}
+            placeholder="Reply to the AI…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            disabled={sending}
+          />
+          <button
+            className="btn btn-primary"
+            onClick={handleSend}
+            disabled={!input.trim() || sending}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
