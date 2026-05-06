@@ -1,14 +1,10 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { githubApi } from "@/lib/api";
 import "@/components/git-escrow.css";
 
-export const Route = createFileRoute("/github-callback")({
-  component: GithubCallbackPage,
-});
-
-function GithubCallbackPage() {
+export default function GithubCallbackPage() {
   const { user, token, isInitializing, connectGithub } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +16,7 @@ function GithubCallbackPage() {
     processed.current = true;
 
     if (!user) {
-      navigate({ to: "/auth" });
+      navigate("/auth");
       return;
     }
 
@@ -41,7 +37,7 @@ function GithubCallbackPage() {
     }
 
     if (!token) {
-      navigate({ to: "/auth" });
+      navigate("/auth");
       return;
     }
 
@@ -66,7 +62,7 @@ function GithubCallbackPage() {
           return githubApi.saveInstallation(token, installationId);
         }
       })
-      .then(() => navigate({ to: redirectTo as "/" }))
+      .then(() => navigate(redirectTo))
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : "Failed to connect GitHub.");
       });
@@ -82,7 +78,7 @@ function GithubCallbackPage() {
             <p className="auth-sub">{error}</p>
             <button
               className="btn btn-primary"
-              onClick={() => navigate({ to: "/github" })}
+              onClick={() => navigate("/github")}
               style={{ marginTop: 16 }}
             >
               Try again →

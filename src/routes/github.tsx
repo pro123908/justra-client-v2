@@ -1,21 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
 import "@/components/git-escrow.css";
-
-export const Route = createFileRoute("/github")({
-  component: GithubConnectPage,
-  head: () => ({
-    meta: [
-      { title: "Connect GitHub — Git Escrow" },
-      {
-        name: "description",
-        content: "Link your GitHub account to verify code deliverables.",
-      },
-    ],
-  }),
-});
 
 export function buildGithubAppInstallUrl(state?: string) {
   const appSlug = import.meta.env.VITE_GITHUB_APP_SLUG as string;
@@ -24,16 +11,16 @@ export function buildGithubAppInstallUrl(state?: string) {
   return `https://github.com/apps/${appSlug}/installations/new?${params.toString()}`;
 }
 
-function GithubConnectPage() {
+export default function GithubConnectPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const isProvider = user?.role === "provider";
 
   useEffect(() => {
-    if (!user) navigate({ to: "/auth" });
-    else if (!user.role) navigate({ to: "/role" });
-    else if (user.githubUsername) navigate({ to: "/dashboard" });
+    if (!user) navigate("/auth");
+    else if (!user.role) navigate("/role");
+    else if (user.githubUsername) navigate("/dashboard");
   }, [user, navigate]);
 
   if (!user || !user.role || user.githubUsername) return null;
@@ -43,7 +30,7 @@ function GithubConnectPage() {
   };
 
   const handleSkip = () => {
-    navigate({ to: "/dashboard" });
+    navigate("/dashboard");
   };
 
   return (
@@ -77,11 +64,7 @@ function GithubConnectPage() {
           </button>
 
           {!isProvider && (
-            <button
-              className="btn-skip"
-              onClick={handleSkip}
-              style={{ marginTop: 12 }}
-            >
+            <button className="btn-skip" onClick={handleSkip} style={{ marginTop: 12 }}>
               Skip for now →
             </button>
           )}

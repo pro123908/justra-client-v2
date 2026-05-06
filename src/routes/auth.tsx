@@ -1,23 +1,10 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
 import "@/components/git-escrow.css";
 
-export const Route = createFileRoute("/auth")({
-  component: AuthPage,
-  head: () => ({
-    meta: [
-      { title: "Connect wallet — Git Escrow" },
-      {
-        name: "description",
-        content: "Connect your Phantom Solana wallet to access your Git Escrow workspace.",
-      },
-    ],
-  }),
-});
-
-function AuthPage() {
+export default function AuthPage() {
   const { user, isInitializing, connectPhantom } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -25,7 +12,7 @@ function AuthPage() {
 
   useEffect(() => {
     if (!isInitializing && user) {
-      navigate({ to: user.role ? "/dashboard" : "/role" });
+      navigate(user.role ? "/dashboard" : "/role");
     }
   }, [user, isInitializing, navigate]);
 
@@ -34,7 +21,7 @@ function AuthPage() {
     setError(null);
     try {
       const authedUser = await connectPhantom();
-      navigate({ to: authedUser.role ? "/dashboard" : "/role" });
+      navigate(authedUser.role ? "/dashboard" : "/role");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to connect wallet");
     } finally {

@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
@@ -9,17 +9,7 @@ import { githubApi, projectDocApi, type ChatMessage } from "@/lib/api";
 import { buildGithubAppInstallUrl } from "@/routes/github";
 import "@/components/git-escrow.css";
 
-export const Route = createFileRoute("/dashboard")({
-  component: DashboardPage,
-  head: () => ({
-    meta: [
-      { title: "Dashboard — Git Escrow" },
-      { name: "description", content: "Your Git Escrow projects and milestones." },
-    ],
-  }),
-});
-
-function DashboardPage() {
+export default function DashboardPage() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const { createProject, projectsOwnedBy, projectsForProvider, invitesForProvider, acceptInvite } =
@@ -31,9 +21,9 @@ function DashboardPage() {
   const [installationId, setInstallationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) navigate({ to: "/auth" });
-    else if (!user.role) navigate({ to: "/role" });
-    else if (user.role === "provider" && !user.githubUsername) navigate({ to: "/github" });
+    if (!user) navigate("/auth");
+    else if (!user.role) navigate("/role");
+    else if (user.role === "provider" && !user.githubUsername) navigate("/github");
   }, [user, navigate]);
 
   useEffect(() => {
@@ -196,7 +186,7 @@ function DashboardPage() {
                 if (createdProject) {
                   const id = createdProject.id;
                   setCreatedProject(null);
-                  navigate({ to: "/projects/$projectId", params: { projectId: id } });
+                  navigate(`/projects/${id}`);
                 }
               }}
             >
@@ -297,12 +287,7 @@ function ProjectGrid({ projects }: { projects: Project[] }) {
   return (
     <div className="proj-grid">
       {projects.map((p) => (
-        <Link
-          key={p.id}
-          to="/projects/$projectId"
-          params={{ projectId: p.id }}
-          className="proj-card"
-        >
+        <Link key={p.id} to={`/projects/${p.id}`} className="proj-card">
           <div className="pc-head">
             <div>
               <div className="pc-id">{p.id}</div>

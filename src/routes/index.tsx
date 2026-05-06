@@ -1,23 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import "@/components/git-escrow.css";
 
-export const Route = createFileRoute("/")({
-  component: Index,
-  head: () => ({
-    meta: [
-      { title: "Git Escrow — Verification Console" },
-      {
-        name: "description",
-        content:
-          "Git Escrow Verification Console — submit specification archive and deliverables for multi-model AI consensus scoring.",
-      },
-    ],
-  }),
-});
-
-function Index() {
+export default function IndexPage() {
   return (
     <div className="git-escrow-root">
       <div className="wrap">

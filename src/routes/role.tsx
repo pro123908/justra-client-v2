@@ -1,28 +1,15 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import { useAuth, type UserRole } from "@/lib/auth";
 import "@/components/git-escrow.css";
 
-export const Route = createFileRoute("/role")({
-  component: RolePage,
-  head: () => ({
-    meta: [
-      { title: "Choose your role — Git Escrow" },
-      {
-        name: "description",
-        content: "Select whether you join Git Escrow as a Provider or Consumer.",
-      },
-    ],
-  }),
-});
-
-function RolePage() {
+export default function RolePage() {
   const { user, setRole } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) navigate({ to: "/auth" });
+    if (!user) navigate("/auth");
   }, [user, navigate]);
 
   if (!user) return null;
@@ -30,7 +17,7 @@ function RolePage() {
   const choose = async (r: UserRole) => {
     await setRole(r);
     // Providers must connect GitHub before accessing the dashboard
-    navigate({ to: r === "provider" ? "/github" : "/dashboard" });
+    navigate(r === "provider" ? "/github" : "/dashboard");
   };
 
   return (

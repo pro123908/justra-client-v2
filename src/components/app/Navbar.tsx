@@ -1,4 +1,4 @@
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 
@@ -20,7 +20,7 @@ export default function Navbar() {
       setTimeout(() => setCopied(false), 1500);
     });
   }
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathname = useLocation().pathname;
 
   return (
     <div className="topbar">
@@ -57,10 +57,7 @@ export default function Navbar() {
             <div className="nav-avatar">{user.initial}</div>
             <span>{user.name}</span>
             {user.githubUsername ? (
-              <span
-                className="nav-github-badge"
-                title={`GitHub: @${user.githubUsername}`}
-              >
+              <span className="nav-github-badge" title={`GitHub: @${user.githubUsername}`}>
                 <GithubIcon />
                 <span>{user.githubUsername}</span>
                 <button
@@ -72,7 +69,8 @@ export default function Navbar() {
                 </button>
               </span>
             ) : (
-              user.role && user.role !== "provider" && (
+              user.role &&
+              user.role !== "provider" && (
                 <Link
                   to="/github"
                   className="nav-link nav-github-connect"
@@ -101,14 +99,14 @@ export default function Navbar() {
               }}
               onClick={() => {
                 logout();
-                navigate({ to: "/" });
+                navigate("/");
               }}
             >
               Logout
             </button>
           </div>
         ) : (
-          <button className="btn-login" onClick={() => navigate({ to: "/auth" })}>
+          <button className="btn-login" onClick={() => navigate("/auth")}>
             Login
           </button>
         )}

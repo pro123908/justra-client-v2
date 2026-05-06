@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
@@ -17,16 +17,6 @@ import {
   type CreateMilestoneInput,
 } from "@/lib/api";
 import "@/components/git-escrow.css";
-
-export const Route = createFileRoute("/projects/$projectId")({
-  component: ProjectDetailPage,
-  head: () => ({
-    meta: [
-      { title: "Project — Git Escrow" },
-      { name: "description", content: "Project milestones and escrow detail." },
-    ],
-  }),
-});
 
 const shortenAddr = (addr: string) =>
   addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
@@ -75,10 +65,10 @@ function statusLabel(s: MilestoneStatus) {
   }
 }
 
-function ProjectDetailPage() {
+export default function ProjectDetailPage() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const { projectId } = Route.useParams();
+  const { projectId = "" } = useParams();
 
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [milestones, setMilestones] = useState<MilestoneResponse[]>([]);
@@ -91,8 +81,8 @@ function ProjectDetailPage() {
   const [createdMs, setCreatedMs] = useState<MilestoneResponse | null>(null);
 
   useEffect(() => {
-    if (!user) navigate({ to: "/auth" });
-    else if (!user.role) navigate({ to: "/role" });
+    if (!user) navigate("/auth");
+    else if (!user.role) navigate("/role");
   }, [user, navigate]);
 
   useEffect(() => {
@@ -269,12 +259,7 @@ function ProjectDetailPage() {
                 key={m.id}
                 type="button"
                 className={"milestone milestone-row ms-row-" + statusGroup(m.status)}
-                onClick={() =>
-                  navigate({
-                    to: "/projects/$projectId/milestones/$milestoneId",
-                    params: { projectId, milestoneId: m.id },
-                  })
-                }
+                onClick={() => navigate(`/projects/${projectId}/milestones/${m.id}`)}
               >
                 <div className="ms-num">{String(idx + 1).padStart(2, "0")}</div>
                 <div className="ms-body">

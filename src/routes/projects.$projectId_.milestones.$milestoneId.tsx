@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import Navbar from "@/components/app/Navbar";
 import { useAuth } from "@/lib/auth";
@@ -21,16 +21,6 @@ import CodeReport from "@/components/milestone/CodeReport";
 import "@/components/git-escrow.css";
 
 const PLATFORM_FEE_BPS = 250;
-
-export const Route = createFileRoute("/projects/$projectId_/milestones/$milestoneId")({
-  component: MilestoneDetailPage,
-  head: () => ({
-    meta: [
-      { title: "Milestone — Git Escrow" },
-      { name: "description", content: "Milestone detail and escrow actions." },
-    ],
-  }),
-});
 
 const shortenAddr = (addr: string) =>
   addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
@@ -103,10 +93,10 @@ function statusLabel(s: MilestoneStatus) {
   }
 }
 
-function MilestoneDetailPage() {
+export default function MilestoneDetailPage() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const { projectId, milestoneId } = Route.useParams();
+  const { projectId = "", milestoneId = "" } = useParams();
 
   const [milestone, setMilestone] = useState<MilestoneResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,8 +125,8 @@ function MilestoneDetailPage() {
   const [fiatCard, setFiatCard] = useState({ name: "", number: "", exp: "", cvc: "" });
 
   useEffect(() => {
-    if (!user) navigate({ to: "/auth" });
-    else if (!user.role) navigate({ to: "/role" });
+    if (!user) navigate("/auth");
+    else if (!user.role) navigate("/role");
   }, [user, navigate]);
 
   useEffect(() => {
@@ -183,8 +173,7 @@ function MilestoneDetailPage() {
             <h3>Milestone not found</h3>
             <p>This milestone doesn't exist or the link is invalid.</p>
             <Link
-              to="/projects/$projectId"
-              params={{ projectId }}
+              to={`/projects/${projectId}`}
               className="btn-action"
               style={{ textDecoration: "none" }}
             >
@@ -368,9 +357,7 @@ function MilestoneDetailPage() {
             <div className="crumb">
               <Link to="/dashboard">Dashboard</Link>
               <span className="sep">/</span>
-              <Link to="/projects/$projectId" params={{ projectId }}>
-                {milestone.project?.title ?? projectId}
-              </Link>
+              <Link to={`/projects/${projectId}`}>{milestone.project?.title ?? projectId}</Link>
               <span className="sep">/</span>
               <span style={{ color: "var(--neon)" }}>{milestone.title}</span>
             </div>
@@ -387,8 +374,7 @@ function MilestoneDetailPage() {
             </div>
           </div>
           <Link
-            to="/projects/$projectId"
-            params={{ projectId }}
+            to={`/projects/${projectId}`}
             className="btn"
             style={{ textDecoration: "none", alignSelf: "flex-start" }}
           >
@@ -408,9 +394,9 @@ function MilestoneDetailPage() {
                   </div>
                   <h3 className="deposit-title">Fund this milestone to start work</h3>
                   <p className="deposit-sub">
-                    The provider has accepted the milestone. Lock <b>◎ {formatSol(milestone.amount)}</b> SOL
-                    into the escrow PDA so the developer can begin. Funds release only after you
-                    approve the delivery.
+                    The provider has accepted the milestone. Lock{" "}
+                    <b>◎ {formatSol(milestone.amount)}</b> SOL into the escrow PDA so the developer
+                    can begin. Funds release only after you approve the delivery.
                   </p>
                 </div>
                 <div className="deposit-amount-card">
@@ -473,9 +459,9 @@ function MilestoneDetailPage() {
                 ▸ Milestone disputed · escrow frozen
               </div>
               <p style={{ margin: 0, fontSize: 13, color: "var(--ink-mute)" }}>
-                This milestone has been disputed. ◎ {formatSol(milestone.amount)} SOL remains locked in the
-                escrow PDA pending arbitration. No further actions are available until the dispute
-                is resolved.
+                This milestone has been disputed. ◎ {formatSol(milestone.amount)} SOL remains locked
+                in the escrow PDA pending arbitration. No further actions are available until the
+                dispute is resolved.
               </p>
             </div>
           )}
@@ -1171,8 +1157,8 @@ function ActiveMilestoneBand({
             {overdue ? "Delivery window overdue" : "Time remaining to deliver"}
           </h3>
           <p className="active-sub">
-            ◎ {formatSol(amount)} SOL is locked in escrow. The provider must ship the codebase &amp; spec
-            before the deadline to claim the funds.
+            ◎ {formatSol(amount)} SOL is locked in escrow. The provider must ship the codebase &amp;
+            spec before the deadline to claim the funds.
           </p>
         </div>
         <div className="countdown">
