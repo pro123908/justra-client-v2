@@ -1,11 +1,19 @@
 {
-  "buildCommand": "bun run build",
+  "buildCommand": "bun run build && mkdir -p public && cp -R dist/client/assets public/assets",
   "installCommand": "bun install",
-  "outputDirectory": "dist",
+  "functions": {
+    "api/[[path]].ts": {
+      "runtime": "edge"
+    }
+  },
   "rewrites": [
     {
+      "source": "/assets/:path*",
+      "destination": "/assets/:path*"
+    },
+    {
       "source": "/:path*",
-      "destination": "/index.html"
+      "destination": "/api/:path*"
     }
   ]
 }
