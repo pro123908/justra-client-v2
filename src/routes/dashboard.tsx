@@ -5,7 +5,7 @@ import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
 import { useAuth } from "@/lib/auth";
 import { useAppData, type Project } from "@/lib/app-data";
-import { githubApi } from "@/lib/api";
+import { githubApi, projectDocApi, type ChatMessage } from "@/lib/api";
 import { buildGithubAppInstallUrl } from "@/routes/github";
 import "@/components/git-escrow.css";
 
@@ -152,6 +152,7 @@ function DashboardPage() {
           setCreatedProject(p);
         }}
         createProject={(input) => createProject(input)}
+        token={token!}
       />
 
       <SuccessModal
@@ -305,73 +306,142 @@ function CreateProjectModal({
   onClose,
   onCreated,
   createProject,
+  token,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (p: Project) => void;
-  createProject: (input: { name: string; description: string }) => Promise<Project>;
+  createProject: (input: { name: string; description: string; docId?: string }) => Promise<Project>;
+  token: string;
 }) {
+  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [docId, setDocId] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [approved, setApproved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [input, setInput] = useState("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
+      setStep(1);
       setName("");
-      setDescription("");
+      setDocId(null);
+      setFileName(null);
+      setMessages([]);
+      setApproved(false);
+      setUploading(false);
+      setSending(false);
+      setInput("");
+      setUploadError(null);
     }
   }, [open]);
 
-  const valid = name.trim().length > 0;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const res = await projectDocApi.upload(token, file);
+      setDocId(res.docId);
+      setFileName(file.name);
+      setMessages([{ role: "assistant", content: res.initialMessage }]);
+      setApproved(res.approved);
+      setStep(2);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
 
-  const submit = async () => {
-    if (!valid) return;
-    const p = await createProject({ name: name.trim(), description: description.trim() });
+  const handleReplaceDoc = () => {
+    setStep(1);
+    setDocId(null);
+    setFileName(null);
+    setMessages([]);
+    setApproved(false);
+    setInput("");
+    setUploadError(null);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || !docId || sending) return;
+    const userMsg: ChatMessage = { role: "user", content: input.trim() };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setInput("");
+    setSending(true);
+    try {
+      const res = await projectDocApi.chat(token, docId, next);
+      setMessages([...next, { role: "assistant", content: res.reply }]);
+      setApproved(res.approved);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!approved || !name.trim()) return;
+    const p = await createProject({ name: name.trim(), description: "", docId: docId ?? undefined });
     onCreated(p);
   };
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      tag="NEW PROJECT"
-      title="Define project"
-      footer={
-        <div className="modal-foot">
-          <div>{description.trim() ? "Description added" : "No description added"}</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn" onClick={onClose}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={!valid} onClick={submit}>
-              Create Project
-            </button>
+  if (step === 1) {
+    return (
+      <Modal
+        open={open}
+        onClose={onClose}
+        tag="NEW PROJECT"
+        title="Define project"
+        footer={
+          <div className="modal-foot">
+            <div>{uploadError ? <span style={{ color: "red" }}>{uploadError}</span> : "Upload a project specification document"}</div>
+            <button className="btn" onClick={onClose}>Cancel</button>
+          </div>
+        }
+      >
+        <div className="form-grid">
+          <div className="form-row">
+            <label className="form-label">▸ Project name</label>
+            <input
+              className="form-input"
+              placeholder="e.g. Atlas Settlement Engine"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="form-row">
+            <label className="form-label">▸ Project specification document</label>
+            <label
+              className="form-input"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: uploading ? "not-allowed" : "pointer", minHeight: 80, textAlign: "center", opacity: uploading ? 0.6 : 1 }}
+            >
+              {uploading ? "Analyzing document…" : "Click to upload · PDF, DOCX, TXT, MD · max 10 MB"}
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                style={{ display: "none" }}
+                disabled={!name.trim() || uploading}
+                onChange={handleFileChange}
+              />
+            </label>
+            {!name.trim() && (
+              <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 4 }}>
+                Enter a project name before uploading
+              </div>
+            )}
           </div>
         </div>
-      }
-    >
-      <div className="form-grid">
-        <div className="form-row">
-          <label className="form-label">▸ Project name</label>
-          <input
-            className="form-input"
-            placeholder="e.g. Atlas Settlement Engine"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-        </div>
+      </Modal>
+    );
+  }
 
-        <div className="form-row">
-          <label className="form-label">▸ Project description</label>
-          <textarea
-            className="form-input"
-            placeholder="Write a short summary of the project scope, goals, or deliverables"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={5}
-          />
-        </div>
-      </div>
-    </Modal>
-  );
+  // Step 2 — chat UI added in Task 11
+  return null;
 }
