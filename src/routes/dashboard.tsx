@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
 import { SuccessModal } from "@/components/app/SuccessModal";
@@ -324,6 +324,10 @@ function CreateProjectModal({
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -337,6 +341,9 @@ function CreateProjectModal({
       setSending(false);
       setInput("");
       setUploadError(null);
+      setCreating(false);
+      setCreateError(null);
+      setChatError(null);
     }
   }, [open]);
 
@@ -356,6 +363,7 @@ function CreateProjectModal({
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -376,20 +384,37 @@ function CreateProjectModal({
     setMessages(next);
     setInput("");
     setSending(true);
+    setChatError(null);
     try {
       const res = await projectDocApi.chat(token, docId, next);
       setMessages([...next, { role: "assistant", content: res.reply }]);
       setApproved(res.approved);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Failed to get response");
+      // Roll back the optimistically-appended user message
+      setMessages(messages);
     } finally {
       setSending(false);
     }
   };
 
   const handleCreate = async () => {
-    if (!approved || !name.trim()) return;
-    const p = await createProject({ name: name.trim(), description: "", docId: docId ?? undefined });
-    onCreated(p);
+    if (!approved || !name.trim() || creating) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const p = await createProject({ name: name.trim(), description: "", docId: docId ?? undefined });
+      onCreated(p);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create project");
+    } finally {
+      setCreating(false);
+    }
   };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   if (step === 1) {
     return (
@@ -469,16 +494,17 @@ function CreateProjectModal({
             <button className="btn" onClick={onClose}>Cancel</button>
             <button
               className="btn btn-primary"
-              disabled={!approved || !name.trim()}
+              disabled={!approved || !name.trim() || creating}
               onClick={handleCreate}
             >
-              Create Project
+              {creating ? "Creating…" : "Create Project"}
             </button>
           </div>
         </div>
       }
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {createError && <div style={{ color: "red", fontSize: 12, marginTop: 4 }}>{createError}</div>}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--ink-dim)" }}>
           <span>📄 {fileName}</span>
           <button
@@ -522,7 +548,10 @@ function CreateProjectModal({
               Thinking…
             </div>
           )}
+          <div ref={chatEndRef} />
         </div>
+
+        {chatError && <div style={{ color: "red", fontSize: 12 }}>{chatError}</div>}
 
         <div style={{ display: "flex", gap: 8 }}>
           <input
