@@ -5,7 +5,6 @@
   "framework": "vite",
   "outputDirectory": "dist",
   "regions": ["iad1"],
-  "envPrefix": "VITE_",
   "env": {
     "NODE_ENV": "production"
   },
