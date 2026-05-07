@@ -49,6 +49,11 @@ export const userApi = {
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role }),
     }),
+
+  resolveByAddress: (token: string, address: string) =>
+    apiFetch<{ id: string }>(`/user/resolve?address=${encodeURIComponent(address)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
 };
 
 export type GithubRepo = {
@@ -100,10 +105,17 @@ export const githubApi = {
     }),
 };
 
+export enum ProjectCreationStatus {
+  PENDING = 'PENDING',
+  CREATION_SUCCESSFUL = 'CREATION_SUCCESSFUL',
+  CREATION_FAILED = 'CREATION_FAILED',
+}
+
 export type ProjectResponse = {
   id: string;
   title: string;
   description: string | null;
+  status: ProjectCreationStatus;
   createdAt: string;
   updatedAt: string;
   owner?: ApiUser;
@@ -185,10 +197,18 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ExtractedMilestone {
+  title: string;
+  description: string;
+  deadline: string | null;
+  amount: string | null;
+}
+
 export interface UploadDocResponse {
   docId: string;
   initialMessage: string;
   approved: boolean;
+  milestones: ExtractedMilestone[];
 }
 
 export interface ChatDocResponse {
@@ -262,6 +282,12 @@ export const projectApi = {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     }),
+
+  completeSetup: (token: string, id: string) =>
+    apiFetch<ProjectResponse>(`/project/${id}/complete-setup`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    }),
 };
 
 export const projectDocApi = {
@@ -284,22 +310,12 @@ export const projectDocApi = {
 };
 
 export type CreateMilestoneInput = {
-  providerId: string;
+  providerId?: string;
   title: string;
   description: string;
   amount: string;
   startDate?: string;
   endDate?: string;
-  files?: File[];
-};
-
-export type MilestoneFileResponse = {
-  id: string;
-  fileName: string;
-  text: string;
-  specCid: string;
-  createdAt: string;
-  updatedAt: string;
 };
 
 export type AnalysisRequirement = {
@@ -363,21 +379,15 @@ export type StoredAnalysisResult = {
 };
 
 export const milestoneApi = {
-  create: (token: string, projectId: string, input: CreateMilestoneInput) => {
-    const form = new FormData();
-    form.append("providerId", input.providerId);
-    form.append("title", input.title);
-    form.append("description", input.description);
-    form.append("amount", input.amount);
-    if (input.startDate) form.append("startDate", input.startDate);
-    if (input.endDate) form.append("endDate", input.endDate);
-    (input.files ?? []).forEach((f) => form.append("files", f));
-    return apiFetch<MilestoneResponse>(`/milestone/project/${projectId}`, {
+  create: (token: string, projectId: string, input: CreateMilestoneInput) =>
+    apiFetch<MilestoneResponse>(`/milestone/project/${projectId}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
-  },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }),
 
   listForProject: (token: string, projectId: string) =>
     apiFetch<MilestoneResponse[]>(`/milestone/project/${projectId}`, {
@@ -432,13 +442,15 @@ export const milestoneApi = {
       body: JSON.stringify({ githubRepo }),
     }),
 
-  getPinataGatewayUrl: (token: string) =>
-    apiFetch<{ url: string }>("/milestone/pinata-gateway-url", {
+  assignProvider: (token: string, id: string, providerId: string) =>
+    apiFetch<MilestoneResponse>(`/milestone/${id}/provider`, {
+      method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ providerId }),
     }),
 
-  getFiles: (token: string, milestoneId: string) =>
-    apiFetch<MilestoneFileResponse[]>(`/milestone/${milestoneId}/files`, {
+  getPinataGatewayUrl: (token: string) =>
+    apiFetch<{ url: string }>("/milestone/pinata-gateway-url", {
       headers: { Authorization: `Bearer ${token}` },
     }),
 };

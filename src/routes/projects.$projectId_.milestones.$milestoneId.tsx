@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
 import Navbar from "@/components/app/Navbar";
+import Modal from "@/components/app/Modal";
 import { useAuth } from "@/lib/auth";
 import { formatSol } from "@/lib/utils";
 import {
   milestoneApi,
+  projectApi,
   MilestoneStatus,
   type MilestoneResponse,
-  type MilestoneFileResponse,
+  type ApiUser,
 } from "@/lib/api";
 import {
   initializeMilestone,
@@ -99,21 +101,16 @@ export default function MilestoneDetailPage() {
   const { projectId = "", milestoneId = "" } = useParams();
 
   const [milestone, setMilestone] = useState<MilestoneResponse | null>(null);
+  const [projectMembers, setProjectMembers] = useState<ApiUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
 
   // reject flow
   const [rejecting, setRejecting] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
-
-  // milestone files
-  const [files, setFiles] = useState<MilestoneFileResponse[]>([]);
-  const [fileViewOpen, setFileViewOpen] = useState(false);
-  const [fileViewContent, setFileViewContent] = useState<string | null>(null);
-  const [fileViewName, setFileViewName] = useState("");
-  const [fileViewError, setFileViewError] = useState("");
 
   // deposit flow (consumer only, when status === PENDING_DEPOSIT)
   const [depositStep, setDepositStep] = useState<
@@ -134,17 +131,16 @@ export default function MilestoneDetailPage() {
     setLoading(true);
     milestoneApi
       .get(token, milestoneId)
-      .then(setMilestone)
+      .then((m) => {
+        setMilestone(m);
+        if (m.project?.id) {
+          projectApi.get(token, m.project.id)
+            .then((p) => setProjectMembers(p.members ?? []))
+            .catch(() => {});
+        }
+      })
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
-  }, [token, milestoneId]);
-
-  useEffect(() => {
-    if (!token) return;
-    milestoneApi
-      .getFiles(token, milestoneId)
-      .then(setFiles)
-      .catch(() => {});
   }, [token, milestoneId]);
 
   if (!user || !user.role) return null;
@@ -190,6 +186,11 @@ export default function MilestoneDetailPage() {
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
   const isConsumer = user.role === "consumer";
   const needsDeposit = isConsumer && milestone.status === MilestoneStatus.WAITING_FOR_DEPOSIT;
+  const canAssignProvider =
+    isConsumer &&
+    (milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL ||
+      milestone.status === MilestoneStatus.REJECTED ||
+      !milestone.provider);
   const isActive = milestone.status === MilestoneStatus.ACTIVE;
   const isDisputed = milestone.status === MilestoneStatus.DISPUTED;
   const showCodeReport = isActive || isDisputed;
@@ -213,7 +214,7 @@ export default function MilestoneDetailPage() {
       let sig = depositTxSig;
       if (!sig) {
         setDepositStep("signing");
-        const requirementsHash = await sha256(files.map((f) => f.text).join(""));
+        const requirementsHash = await sha256(milestone.description ?? "");
         sig = await initializeMilestone({
           milestoneId: milestone.id,
           amountLamports: solToLamports(parseFloat(milestone.amount)),
@@ -294,13 +295,6 @@ export default function MilestoneDetailPage() {
     }
   };
 
-  const handleViewFile = (file: MilestoneFileResponse) => {
-    setFileViewName(file.fileName);
-    setFileViewContent(file.text);
-    setFileViewError("");
-    setFileViewOpen(true);
-  };
-
   const handleReject = async () => {
     if (rejectNote.trim().length < 4) return;
     setActionLoading(true);
@@ -373,13 +367,21 @@ export default function MilestoneDetailPage() {
               </span>
             </div>
           </div>
-          <Link
-            to={`/projects/${projectId}`}
-            className="btn"
-            style={{ textDecoration: "none", alignSelf: "flex-start" }}
-          >
-            ← Back to project
-          </Link>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+            <Link
+              to={`/projects/${projectId}`}
+              className="btn"
+              style={{ textDecoration: "none" }}
+            >
+              ← Back to project
+            </Link>
+            {canAssignProvider && (
+              <button className="btn-action" onClick={() => setAssignOpen(true)}>
+                <span className="plus">⚙</span>{" "}
+                {milestone.provider ? "Reassign Provider" : "Assign Provider"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Hero */}
@@ -664,124 +666,20 @@ export default function MilestoneDetailPage() {
           </div>
         )}
 
-        {files.length > 0 && (
-          <div style={{ marginTop: 32 }}>
-            <div className="section-h" style={{ marginBottom: 14 }}>
-              <span>▸ MILESTONE FILES</span>
-              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
-                {files.length} file{files.length !== 1 ? "s" : ""} · stored on IPFS
-              </span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {files.map((f) => (
-                <div
-                  key={f.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    border: "1px solid var(--line)",
-                    borderRadius: 6,
-                    padding: "12px 16px",
-                    background: "var(--panel)",
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-mono, monospace)",
-                        fontSize: 13,
-                        color: "var(--ink)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {f.fileName}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "var(--ink-mute)",
-                        fontFamily: "var(--display)",
-                      }}
-                    >
-                      CID {truncMiddle(f.specCid, 8, 6)} · {fmtDate(f.createdAt)}
-                    </div>
-                  </div>
-                  <button
-                    className="btn"
-                    style={{ fontSize: 12, flexShrink: 0 }}
-                    onClick={() => handleViewFile(f)}
-                  >
-                    View
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
-      {fileViewOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
+      {canAssignProvider && (
+        <AssignProviderModal
+          open={assignOpen}
+          onClose={() => setAssignOpen(false)}
+          providers={projectMembers}
+          currentProviderId={milestone.provider?.id}
+          onAssign={async (providerId) => {
+            const updated = await milestoneApi.assignProvider(token!, milestoneId, providerId);
+            if (updated) setMilestone(updated);
+            setAssignOpen(false);
           }}
-          onClick={() => setFileViewOpen(false)}
-        >
-          <div
-            style={{
-              background: "var(--panel)",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              padding: 24,
-              maxWidth: 700,
-              width: "90%",
-              maxHeight: "80vh",
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div className="form-label" style={{ fontSize: 13 }}>
-                ▸ {fileViewName}
-              </div>
-              <button
-                className="btn"
-                style={{ fontSize: 12 }}
-                onClick={() => setFileViewOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            {fileViewError && <div className="auth-error">{fileViewError}</div>}
-            {fileViewContent !== null && (
-              <pre
-                style={{
-                  overflow: "auto",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontFamily: "var(--font-mono, monospace)",
-                  fontSize: 13,
-                  color: "var(--fg)",
-                  margin: 0,
-                }}
-              >
-                {fileViewContent}
-              </pre>
-            )}
-          </div>
-        </div>
+        />
       )}
 
       {needsDeposit && depositStep !== "idle" && (
@@ -1106,6 +1004,113 @@ export default function MilestoneDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function AssignProviderModal({
+  open,
+  onClose,
+  providers,
+  currentProviderId,
+  onAssign,
+}: {
+  open: boolean;
+  onClose: () => void;
+  providers: ApiUser[];
+  currentProviderId?: string;
+  onAssign: (providerId: string) => Promise<void>;
+}) {
+  const [selectedId, setSelectedId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setSelectedId(currentProviderId ?? "");
+      setError("");
+      setSubmitting(false);
+    }
+  }, [open, currentProviderId]);
+
+  const submit = async () => {
+    if (!selectedId || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await onAssign(selectedId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to assign provider.");
+      setSubmitting(false);
+    }
+  };
+
+  const shortenAddr = (addr: string) =>
+    addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      tag="MILESTONE"
+      title="Assign provider"
+      footer={
+        <div className="modal-foot">
+          <div style={{ color: "var(--ink-dim)", fontSize: 12 }}>
+            {error ? <span style={{ color: "red" }}>{error}</span> : "Select a provider from the project members list"}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn" onClick={onClose} disabled={submitting}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!selectedId || submitting}
+              onClick={submit}
+            >
+              {submitting ? "Assigning…" : "Assign"}
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <div className="form-grid">
+        {providers.length === 0 ? (
+          <div className="access-empty">
+            No providers have joined this project yet. Invite one from the project page first.
+          </div>
+        ) : (
+          <div className="access-list">
+            {providers.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={"access-row" + (selectedId === p.id ? " selected" : "")}
+                onClick={() => setSelectedId(p.id)}
+                style={{
+                  background: selectedId === p.id ? "rgba(0,255,128,0.06)" : undefined,
+                  border: selectedId === p.id ? "1px solid var(--neon)" : undefined,
+                  cursor: "pointer",
+                  width: "100%",
+                  textAlign: "left",
+                }}
+              >
+                <div className="ar-avatar">{p.publicKey.charAt(0).toUpperCase()}</div>
+                <div className="ar-body">
+                  <div className="ar-name">{shortenAddr(p.publicKey)}</div>
+                  <div className="ar-meta">{p.publicKey}</div>
+                </div>
+                <span className="ms-status approved">
+                  <span className="d" /> Active
+                </span>
+                {selectedId === p.id && (
+                  <span style={{ color: "var(--neon)", fontSize: 14, marginLeft: 4 }}>✓</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 

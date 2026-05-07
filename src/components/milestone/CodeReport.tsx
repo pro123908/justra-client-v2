@@ -1129,28 +1129,50 @@ export default function CodeReport({
                 <span className="chk">{hasAnalyses ? "✓" : ""}</span> STORED ANALYSIS
               </div>
             </div>
-            <button
-              className="btn-generate"
-              disabled={!githubRepo || isDisabled}
-              onClick={runAnalysis}
-              title={
-                !githubRepo
-                  ? hasAnalyses
-                    ? "Provider submitted via ZIP — view stored analyses below"
-                    : "Waiting for provider to submit code"
-                  : undefined
-              }
-            >
-              {hasAnalyses ? "Run New Analysis" : "Run Analysis"}
-              <span className="ar">→</span>
-            </button>
-            <div className="cta-hint">
-              {githubRepo
-                ? "LLM-powered · semantic analysis · 30–120 seconds"
-                : hasAnalyses
-                  ? "Provider submitted code via ZIP — re-analysis requires a connected GitHub repo"
-                  : "Waiting for provider to submit a GitHub repo or ZIP archive"}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <button
+                className="btn-generate"
+                disabled={!githubRepo || isDisabled}
+                onClick={runAnalysis}
+                title={
+                  !githubRepo
+                    ? hasAnalyses
+                      ? "Provider submitted via ZIP — view stored analyses below"
+                      : "Waiting for provider to submit code"
+                    : undefined
+                }
+              >
+                {hasAnalyses ? "Run New Analysis" : "Run Analysis"}
+                <span className="ar">→</span>
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={releaseLoading || isDisabled}
+                onClick={async () => {
+                  setReleaseLoading(true);
+                  setReleaseError(null);
+                  try {
+                    await onReleaseFunds();
+                  } catch (err) {
+                    setReleaseError(
+                      err instanceof Error ? err.message : "Failed to release milestone funds.",
+                    );
+                  } finally {
+                    setReleaseLoading(false);
+                  }
+                }}
+              >
+                {releaseLoading ? "Releasing…" : "Release Funds"}
+              </button>
             </div>
+            <div className="cta-hint">
+              Analysis is optional · release funds directly or run LLM review first (30–120 s)
+            </div>
+            {releaseError && (
+              <div className="auth-error" style={{ marginTop: 6 }}>
+                {releaseError}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1230,12 +1252,11 @@ export default function CodeReport({
       {latestAnalysis && !isProvider && (
         <div className="analysis-actions">
           <div>
-            <div className="analysis-actions-title">Consumer actions</div>
+            <div className="analysis-actions-title">Analysis review</div>
             <div className="analysis-actions-copy">
-              Review the latest stored analysis before releasing the escrowed funds.
+              Inspect the latest stored report before making your release decision.
             </div>
           </div>
-
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               className="btn"
@@ -1244,25 +1265,6 @@ export default function CodeReport({
               disabled={isDisabled}
             >
               Open latest analysis
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={async () => {
-                setReleaseLoading(true);
-                setReleaseError(null);
-                try {
-                  await onReleaseFunds();
-                } catch (err) {
-                  setReleaseError(
-                    err instanceof Error ? err.message : "Failed to release milestone funds.",
-                  );
-                } finally {
-                  setReleaseLoading(false);
-                }
-              }}
-              disabled={releaseLoading || isDisabled}
-            >
-              {releaseLoading ? "Releasing funds…" : "Release funds"}
             </button>
             {onDispute && (
               <button
@@ -1294,8 +1296,6 @@ export default function CodeReport({
         </div>
       )}
 
-      {releaseError && <div className="auth-error">{releaseError}</div>}
-
       <Modal
         open={!!activeAnalysis}
         onClose={() => setActiveAnalysis(null)}
@@ -1306,32 +1306,9 @@ export default function CodeReport({
           activeAnalysis ? (
             <div className="modal-foot">
               <div>Milestone snapshot · {activeAnalysis.id.slice(0, 8)}</div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" onClick={() => setActiveAnalysis(null)}>
-                  Close
-                </button>
-                {!isProvider && (
-                  <button
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      setReleaseLoading(true);
-                      setReleaseError(null);
-                      try {
-                        await onReleaseFunds();
-                      } catch (err) {
-                        setReleaseError(
-                          err instanceof Error ? err.message : "Failed to release milestone funds.",
-                        );
-                      } finally {
-                        setReleaseLoading(false);
-                      }
-                    }}
-                    disabled={releaseLoading || isDisabled}
-                  >
-                    {releaseLoading ? "Releasing funds…" : "Release funds"}
-                  </button>
-                )}
-              </div>
+              <button className="btn" onClick={() => setActiveAnalysis(null)}>
+                Close
+              </button>
             </div>
           ) : null
         }

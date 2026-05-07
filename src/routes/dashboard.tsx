@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
-import { SuccessModal } from "@/components/app/SuccessModal";
 import { useAuth } from "@/lib/auth";
 import { useAppData, type Project } from "@/lib/app-data";
-import { githubApi, projectDocApi, type ChatMessage } from "@/lib/api";
+import { githubApi } from "@/lib/api";
 import { buildGithubAppInstallUrl } from "@/routes/github";
 import "@/components/git-escrow.css";
 
@@ -16,7 +15,6 @@ export default function DashboardPage() {
     useAppData();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [hasInstallation, setHasInstallation] = useState<boolean | null>(null);
   const [installationId, setInstallationId] = useState<string | null>(null);
 
@@ -157,43 +155,9 @@ export default function DashboardPage() {
         onClose={() => setCreateOpen(false)}
         onCreated={(p) => {
           setCreateOpen(false);
-          setCreatedProject(p);
+          navigate(`/projects/${p.id}/invites`);
         }}
         createProject={(input) => createProject(input)}
-        token={token!}
-      />
-
-      <SuccessModal
-        open={!!createdProject}
-        onClose={() => setCreatedProject(null)}
-        tag="PROJECT"
-        title="Project created successfully"
-        message="Your project is now active under escrow management. You can invite developers using the share link below."
-        shareLabel="Share project with developers"
-        shareUrl={
-          createdProject
-            ? `${typeof window !== "undefined" ? window.location.origin : ""}/projects/${createdProject.id}`
-            : undefined
-        }
-        footer={
-          <>
-            <button className="btn" onClick={() => setCreatedProject(null)}>
-              Stay on dashboard
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                if (createdProject) {
-                  const id = createdProject.id;
-                  setCreatedProject(null);
-                  navigate(`/projects/${id}`);
-                }
-              }}
-            >
-              Open project →
-            </button>
-          </>
-        }
       />
     </div>
   );
@@ -309,109 +273,30 @@ function CreateProjectModal({
   onClose,
   onCreated,
   createProject,
-  token,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (p: Project) => void;
-  createProject: (input: { name: string; description: string; docId?: string }) => Promise<Project>;
-  token: string;
+  createProject: (input: { name: string; description: string }) => Promise<Project>;
 }) {
-  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState("");
-  const [docId, setDocId] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [approved, setApproved] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [input, setInput] = useState("");
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
-      setStep(1);
       setName("");
-      setDocId(null);
-      setFileName(null);
-      setMessages([]);
-      setApproved(false);
-      setUploading(false);
-      setSending(false);
-      setInput("");
-      setUploadError(null);
       setCreating(false);
       setCreateError(null);
-      setChatError(null);
     }
   }, [open]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadError(null);
-    setUploading(true);
-    try {
-      // const res = await projectDocApi.upload(token, file);
-      // setDocId(res.docId);
-      // setFileName(file.name);
-      setFile(file);
-      // setMessages([{ role: "assistant", content: res.initialMessage }]);
-      // setApproved(res.approved);
-      setStep(2);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  };
-
-  const handleReplaceDoc = () => {
-    setStep(1);
-    setDocId(null);
-    setFileName(null);
-    setMessages([]);
-    setApproved(false);
-    setInput("");
-    setUploadError(null);
-  };
-
-  const handleSend = async () => {
-    if (!input.trim() || !docId || sending) return;
-    const userMsg: ChatMessage = { role: "user", content: input.trim() };
-    const next = [...messages, userMsg];
-    setMessages(next);
-    setInput("");
-    setSending(true);
-    setChatError(null);
-    try {
-      const res = await projectDocApi.chat(token, docId, next);
-      setMessages([...next, { role: "assistant", content: res.reply }]);
-      setApproved(res.approved);
-    } catch (err) {
-      setChatError(err instanceof Error ? err.message : "Failed to get response");
-      // Roll back the optimistically-appended user message
-      setMessages(messages);
-    } finally {
-      setSending(false);
-    }
-  };
-
   const handleCreate = async () => {
-    if (!approved || !name.trim() || creating) return;
+    if (!name.trim() || creating) return;
     setCreating(true);
     setCreateError(null);
     try {
-      const p = await createProject({
-        name: name.trim(),
-        description: "",
-      });
+      const p = await createProject({ name: name.trim(), description: "" });
       onCreated(p);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Failed to create project");
@@ -420,101 +305,20 @@ function CreateProjectModal({
     }
   };
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  if (step === 1) {
-    return (
-      <Modal
-        open={open}
-        onClose={onClose}
-        tag="NEW PROJECT"
-        title="Define project"
-        footer={
-          <div className="modal-foot">
-            <div>
-              {uploadError ? (
-                <span style={{ color: "red" }}>{uploadError}</span>
-              ) : (
-                "Upload a project specification document"
-              )}
-            </div>
-            <button className="btn" onClick={onClose}>
-              Cancel
-            </button>
-          </div>
-        }
-      >
-        <div className="form-grid">
-          <div className="form-row">
-            <label className="form-label">▸ Project name</label>
-            <input
-              className="form-input"
-              placeholder="e.g. Atlas Settlement Engine"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="form-row">
-            <label className="form-label">▸ Project specification document</label>
-            <label
-              className="form-input"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: uploading ? "not-allowed" : "pointer",
-                minHeight: 80,
-                textAlign: "center",
-                opacity: uploading ? 0.6 : 1,
-              }}
-            >
-              {uploading
-                ? "Analyzing document…"
-                : "Click to upload · PDF, DOCX, TXT, MD · max 10 MB"}
-              <input
-                type="file"
-                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-                style={{ display: "none" }}
-                disabled={!name.trim() || uploading}
-                onChange={handleFileChange}
-              />
-            </label>
-            {!name.trim() && (
-              <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 4 }}>
-                Enter a project name before uploading
-              </div>
-            )}
-          </div>
-        </div>
-      </Modal>
-    );
-  }
-
-  // Step 2 — chat
   return (
     <Modal
       open={open}
       onClose={onClose}
       tag="NEW PROJECT"
-      title="Review with AI"
+      title="Create project"
       footer={
         <div className="modal-foot">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: approved ? "var(--neon)" : "var(--ink-dim)",
-                display: "inline-block",
-              }}
-            />
-            <span style={{ fontSize: 13, color: approved ? "var(--neon)" : "var(--ink-dim)" }}>
-              {approved ? "Ready to create" : "Pending review"}
-            </span>
+          <div>
+            {createError ? (
+              <span style={{ color: "red" }}>{createError}</span>
+            ) : (
+              "Enter a name to get started"
+            )}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn" onClick={onClose}>
@@ -522,7 +326,7 @@ function CreateProjectModal({
             </button>
             <button
               className="btn btn-primary"
-              disabled={!approved || !name.trim() || creating}
+              disabled={!name.trim() || creating}
               onClick={handleCreate}
             >
               {creating ? "Creating…" : "Create Project"}
@@ -531,88 +335,19 @@ function CreateProjectModal({
         </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {createError && (
-          <div style={{ color: "red", fontSize: 12, marginTop: 4 }}>{createError}</div>
-        )}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 13,
-            color: "var(--ink-dim)",
-          }}
-        >
-          <span>📄 {fileName}</span>
-          <button
-            className="btn"
-            style={{ fontSize: 12, padding: "2px 10px" }}
-            onClick={handleReplaceDoc}
-          >
-            Replace document
-          </button>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            maxHeight: 320,
-            overflowY: "auto",
-            padding: "8px 0",
-          }}
-        >
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "80%",
-                background: m.role === "user" ? "var(--neon)" : "var(--surface-2, #1a1a1a)",
-                color: m.role === "user" ? "#000" : "var(--ink)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 13,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {m.content}
-            </div>
-          ))}
-          {sending && (
-            <div style={{ alignSelf: "flex-start", fontSize: 13, color: "var(--ink-dim)" }}>
-              Thinking…
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        {chatError && <div style={{ color: "red", fontSize: 12 }}>{chatError}</div>}
-
-        <div style={{ display: "flex", gap: 8 }}>
+      <div className="form-grid">
+        <div className="form-row">
+          <label className="form-label">▸ Project name</label>
           <input
             className="form-input"
-            style={{ flex: 1 }}
-            placeholder="Reply to the AI…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            placeholder="e.g. Atlas Settlement Engine"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
+              if (e.key === "Enter") handleCreate();
             }}
-            disabled={sending}
+            autoFocus
           />
-          <button
-            className="btn btn-primary"
-            onClick={handleSend}
-            disabled={!input.trim() || sending}
-          >
-            Send
-          </button>
         </div>
       </div>
     </Modal>
