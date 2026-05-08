@@ -1,4 +1,4 @@
-import { Ico } from './Icons';
+import { Ico } from "./Icons";
 
 interface ModalProps {
   open: boolean;

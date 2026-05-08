@@ -1,7 +1,7 @@
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
-import { Sidebar } from './Sidebar';
-import { Topbar } from './Topbar';
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/lib/auth";
+import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -9,10 +9,10 @@ interface AppShellProps {
 }
 
 function deriveActive(pathname: string): string {
-  if (pathname.startsWith('/projects')) return 'projects';
-  if (pathname.startsWith('/settings')) return 'settings';
-  if (pathname.startsWith('/dashboard')) return 'dashboard';
-  return 'dashboard';
+  if (pathname.startsWith("/projects")) return "projects";
+  if (pathname.startsWith("/settings")) return "settings";
+  if (pathname.startsWith("/dashboard")) return "dashboard";
+  return "dashboard";
 }
 
 export function AppShell({ children, onCreate }: AppShellProps) {
@@ -22,15 +22,15 @@ export function AppShell({ children, onCreate }: AppShellProps) {
   const active = deriveActive(location.pathname);
 
   const handleNav = (id: string) => {
-    if (id === 'dashboard') navigate('/dashboard');
-    else if (id === 'projects' || id === 'milestones') navigate('/projects');
-    else if (id === 'settings') navigate('/settings');
+    if (id === "dashboard") navigate("/dashboard");
+    else if (id === "projects" || id === "milestones") navigate("/projects");
+    else if (id === "settings") navigate("/settings");
   };
 
   const sidebarUser = {
-    name: user?.name ?? 'Wallet',
-    short: user?.short ?? '',
-    initial: user?.initial ?? 'A',
+    name: user?.name ?? "Wallet",
+    short: user?.short ?? "",
+    initial: user?.initial ?? "A",
   };
 
   return (
@@ -38,7 +38,7 @@ export function AppShell({ children, onCreate }: AppShellProps) {
       <Sidebar
         active={active}
         onNav={handleNav}
-        role={(user?.role as 'consumer' | 'provider') ?? 'consumer'}
+        role={(user?.role as "consumer" | "provider") ?? "consumer"}
         user={sidebarUser}
       />
       <div className="main">
