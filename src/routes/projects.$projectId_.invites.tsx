@@ -30,10 +30,7 @@ export default function ProjectInvitesPage() {
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    Promise.all([
-      projectApi.get(token, projectId),
-      inviteApi.getProjectInvites(token, projectId),
-    ])
+    Promise.all([projectApi.get(token, projectId), inviteApi.getProjectInvites(token, projectId)])
       .then(([proj, invList]) => {
         setProject(proj);
         setInvites(invList);
@@ -110,14 +107,12 @@ export default function ProjectInvitesPage() {
             <h1>Invite providers</h1>
             <div className="ph-meta">
               <span>
-                <b>{pendingInvites.length}</b> pending invite{pendingInvites.length !== 1 ? "s" : ""}
+                <b>{pendingInvites.length}</b> pending invite
+                {pendingInvites.length !== 1 ? "s" : ""}
               </span>
             </div>
           </div>
-          <button
-            className="btn-action"
-            onClick={() => navigate(`/projects/${projectId}`)}
-          >
+          <button className="btn-action" onClick={() => navigate(`/projects/${projectId}`)}>
             Continue to project →
           </button>
         </div>
@@ -175,10 +170,7 @@ export default function ProjectInvitesPage() {
                     <span className="ms-status pending">
                       <span className="d" /> Pending
                     </span>
-                    <button
-                      className="btn btn-danger small"
-                      onClick={() => handleCancel(inv.id)}
-                    >
+                    <button className="btn btn-danger small" onClick={() => handleCancel(inv.id)}>
                       Cancel
                     </button>
                   </div>
@@ -197,10 +189,7 @@ export default function ProjectInvitesPage() {
               justifyContent: "flex-end",
             }}
           >
-            <button
-              className="btn btn-primary"
-              onClick={() => navigate(`/projects/${projectId}`)}
-            >
+            <button className="btn btn-primary" onClick={() => navigate(`/projects/${projectId}`)}>
               Continue to project →
             </button>
           </div>

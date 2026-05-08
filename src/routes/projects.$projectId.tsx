@@ -303,7 +303,9 @@ export default function ProjectDetailPage() {
                   <div className="ms-card-header">
                     <h3 className="ms-title">{m.title}</h3>
                     <div className="ms-amount-pill">
-                      <span className="ms-amount-value">◎ {m.amount ? formatSol(m.amount) : "—"}</span>
+                      <span className="ms-amount-value">
+                        ◎ {m.amount ? formatSol(m.amount) : "—"}
+                      </span>
                       <span className="ms-amount-unit">SOL</span>
                     </div>
                   </div>
@@ -343,7 +345,6 @@ export default function ProjectDetailPage() {
             ))}
           </div>
         )}
-
       </div>
 
       {canManage && (
@@ -439,13 +440,11 @@ function AddMilestoneModal({
       setAmount("");
       setError("");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const valid =
-    title.trim().length > 0 &&
-    description.trim().length > 0 &&
-    amount.trim().length > 0;
+    title.trim().length > 0 && description.trim().length > 0 && amount.trim().length > 0;
 
   const submit = async () => {
     if (!valid || submitting) return;
@@ -491,7 +490,12 @@ function AddMilestoneModal({
         <div className="form-row">
           <label className="form-label">▸ Assign to provider</label>
           {allProviders.length === 0 ? (
-            <div className="access-empty">No providers invited yet. <Link to={`/projects/${projectId}/invites`} style={{ color: "var(--neon)" }}>Invite one first →</Link></div>
+            <div className="access-empty">
+              No providers invited yet.{" "}
+              <Link to={`/projects/${projectId}/invites`} style={{ color: "var(--neon)" }}>
+                Invite one first →
+              </Link>
+            </div>
           ) : (
             <select
               className="form-input"
@@ -982,10 +986,7 @@ function ProjectSetupView({
                 <span style={{ color: "var(--neon)", fontSize: 13 }}>
                   ✓ Documentation approved — you're ready to set up milestones
                 </span>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => setShowReview(true)}
-                >
+                <button className="btn btn-primary" onClick={() => setShowReview(true)}>
                   Create Milestones →
                 </button>
               </div>
@@ -1007,8 +1008,7 @@ function ProjectSetupView({
                   style={{
                     alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                     maxWidth: "80%",
-                    background:
-                      m.role === "user" ? "var(--neon)" : "var(--surface-2, #1a1a1a)",
+                    background: m.role === "user" ? "var(--neon)" : "var(--surface-2, #1a1a1a)",
                     color: m.role === "user" ? "#000" : "var(--ink)",
                     borderRadius: 8,
                     padding: "8px 12px",
@@ -1099,7 +1099,10 @@ function MilestoneReviewSection({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    inviteApi.getProjectInvites(token, project.id).then(setInvites).catch(() => {});
+    inviteApi
+      .getProjectInvites(token, project.id)
+      .then(setInvites)
+      .catch(() => {});
   }, [token, project.id]);
 
   const acceptedProviders = project.members ?? [];
@@ -1114,7 +1117,7 @@ function MilestoneReviewSection({
   };
 
   const allFilled = milestones.every(
-    (m) => m.title.trim() && m.description.trim() && m.amount.trim(),
+    (m) => m.title.trim() && m.description.trim() && m.amount?.trim(),
   );
 
   const handleCreateAll = async () => {
@@ -1272,7 +1275,9 @@ function MilestoneReviewSection({
                 <div className="form-row">
                   <label className="form-label">
                     ▸ Amount (SOL)
-                    {!m.amount && <span style={{ color: "var(--amber)", marginLeft: 6 }}>· required</span>}
+                    {!m.amount && (
+                      <span style={{ color: "var(--amber)", marginLeft: 6 }}>· required</span>
+                    )}
                   </label>
                   <input
                     className="form-input"
@@ -1287,11 +1292,17 @@ function MilestoneReviewSection({
           ))}
         </div>
 
-        {error && (
-          <div style={{ color: "red", fontSize: 13, marginTop: 16 }}>{error}</div>
-        )}
+        {error && <div style={{ color: "red", fontSize: 13, marginTop: 16 }}>{error}</div>}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 32, marginBottom: 48 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 12,
+            marginTop: 32,
+            marginBottom: 48,
+          }}
+        >
           <button className="btn" onClick={onBack} disabled={submitting}>
             ← Back
           </button>

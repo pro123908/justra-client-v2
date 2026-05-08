@@ -396,9 +396,8 @@ export default function MilestoneDetailPage() {
                   </div>
                   <h3 className="deposit-title">Fund this milestone to start work</h3>
                   <p className="deposit-sub">
-                    The provider has accepted the milestone. Lock{" "}
-                    <b>◎ {formatSol(milestone.amount)}</b> SOL into the escrow PDA so the developer
-                    can begin. Funds release only after you approve the delivery.
+                    Lock <b>◎ {formatSol(milestone.amount)}</b> SOL into the escrow PDA so the
+                    developer can begin. Funds release only after you approve the delivery.
                   </p>
                 </div>
                 <div className="deposit-amount-card">
@@ -407,6 +406,26 @@ export default function MilestoneDetailPage() {
                   <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
                 </div>
               </div>
+              {!milestone.provider && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "12px 16px",
+                    borderRadius: 6,
+                    background: "rgba(250,204,21,0.08)",
+                    border: "1px solid rgba(250,204,21,0.35)",
+                    marginBottom: 12,
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>⚠</span>
+                  <span style={{ fontSize: 13, color: "var(--ink-mute)" }}>
+                    No provider has been assigned to this milestone yet. Assign a provider before
+                    making a deposit.
+                  </span>
+                </div>
+              )}
               <div className="deposit-meta-row">
                 <span className="ms-chip">
                   <span className="k">PDA</span>
@@ -416,7 +435,9 @@ export default function MilestoneDetailPage() {
                 </span>
                 <span className="ms-chip">
                   <span className="k">Provider</span>
-                  <span className="v">{shortenAddr(milestone.provider.publicKey)}</span>
+                  <span className="v">
+                    {milestone.provider ? shortenAddr(milestone.provider.publicKey) : "— not assigned"}
+                  </span>
                 </span>
                 <span className="ms-chip warn">
                   <span className="k">Status</span>
@@ -424,11 +445,17 @@ export default function MilestoneDetailPage() {
                 </span>
               </div>
               <div className="deposit-actions">
-                <button className="btn btn-primary" onClick={handleStartDeposit}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleStartDeposit}
+                  disabled={!milestone.provider}
+                >
                   Fund milestone — ◎ {formatSol(milestone.amount)} SOL / ${fiatTotal}
                 </button>
                 <span className="deposit-hint">
-                  Choose to pay with crypto (SOL) or fiat (card).
+                  {milestone.provider
+                    ? "Choose to pay with crypto (SOL) or fiat (card)."
+                    : "Assign a provider first to enable deposit."}
                 </span>
               </div>
             </div>

@@ -155,7 +155,7 @@ export default function DashboardPage() {
         onClose={() => setCreateOpen(false)}
         onCreated={(p) => {
           setCreateOpen(false);
-          navigate(`/projects/${p.id}/invites`);
+          navigate(`/projects/${p.id}`);
         }}
         createProject={(input) => createProject(input)}
       />
