@@ -1,118 +1,80 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/app/Navbar";
-import { useAuth, type UserRole } from "@/lib/auth";
-import "@/components/git-escrow.css";
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/auth';
+import { Ico } from '@/components/app/Icons';
 
 export default function RolePage() {
-  const { user, setRole } = useAuth();
+  const { setRole, user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!user) navigate("/auth");
-  }, [user, navigate]);
+  const shortKey = (key: string) => key ? `${key.slice(0, 4)}…${key.slice(-4)}` : '';
 
-  if (!user) return null;
-
-  const choose = async (r: UserRole) => {
-    await setRole(r);
-    // Providers must connect GitHub before accessing the dashboard
-    navigate(r === "provider" ? "/github" : "/dashboard");
+  const handleRole = async (role: 'consumer' | 'provider') => {
+    await setRole(role);
+    if (role === 'provider') {
+      navigate('/github');
+    } else {
+      navigate('/dashboard');
+    }
   };
 
   return (
-    <div className="git-escrow-root">
-      <div className="wrap" style={{ paddingBottom: 24 }}>
-        <Navbar />
-      </div>
-      <div className="role-shell">
-        <div className="role-head">
-          <div className="auth-eyebrow">Authenticate · Step 2 of 2</div>
-          <h2>Select your role.</h2>
-          <p className="role-sub">
-            Wallet connected as <span className="role-wallet">{user.short}</span>. Choose how you'll
-            participate in this escrow workspace. You can switch workspaces at any time.
-          </p>
+    <div className="public-shell">
+      <nav className="public-nav">
+        <div className="row gap-12">
+          <div className="sb-brand-mark">J</div>
+          <div className="h-display" style={{ fontSize: 18 }}>Justra</div>
         </div>
+        <div className="actions">
+          {user?.address && (
+            <span className="pill">
+              <span className="dot" style={{ background: '#22c55e' }} />
+              Wallet connected · {shortKey(user.address)}
+            </span>
+          )}
+        </div>
+      </nav>
+      <div className="center-shell" style={{ alignItems: 'flex-start', paddingTop: 64 }}>
+        <div style={{ width: 'min(880px, 100%)' }}>
+          <span className="auth-step">Step 2 of 2 · Choose role</span>
+          <h2 className="h-display" style={{ fontSize: 28, marginTop: 14, marginBottom: 8 }}>How will you use Justra?</h2>
+          <p className="muted" style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 580 }}>
+            You can switch between workspaces any time — but each wallet starts with a primary role
+            so we know which tools to surface first.
+          </p>
 
-        <div className="role-grid">
-          <RoleCard
-            tag="ROLE · 01"
-            title="Provider"
-            sub="Developer / Contributor"
-            description="Submit code, deliver milestones, and receive payments held in escrow as each milestone is approved by the consumer."
-            bullets={[
-              "Push milestone-wise development code",
-              "Trigger on-chain release upon approval",
-              "Build verifiable delivery history",
-            ]}
-            cta="Continue as Provider"
-            onClick={() => choose("provider")}
-            required="Requires GitHub account"
-          />
-          <RoleCard
-            tag="ROLE · 02"
-            title="Consumer"
-            sub="Product Owner / Payer"
-            description="Own the project, fund escrow milestones, and approve developer submissions. Funds release only when you sign off."
-            bullets={[
-              "Define scope and milestone amounts",
-              "Lock funds in escrow per milestone",
-              "Approve or dispute deliverables",
-            ]}
-            cta="Continue as Consumer"
-            onClick={() => choose("consumer")}
-          />
+          <div className="role-grid">
+            <button className="role-card" onClick={() => handleRole('consumer')}>
+              <div className="role-card-ico"><Ico.briefcase /></div>
+              <div>
+                <div className="muted-2" style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Client · Project owner</div>
+                <h3>I'm hiring developers</h3>
+              </div>
+              <p>Define scope, fund milestones, and approve deliveries. You hold the spec and the budget.</p>
+              <ul className="role-bullets">
+                <li><Ico.check />Create projects and break them into payable milestones</li>
+                <li><Ico.check />Lock funds in escrow per milestone — release on approval</li>
+                <li><Ico.check />Inspect AI code reviews before signing off</li>
+              </ul>
+              <div className="role-card-cta"><span>Continue as client</span><Ico.arrowR /></div>
+            </button>
+
+            <button className="role-card" onClick={() => handleRole('provider')}>
+              <div className="role-card-ico"><Ico.user /></div>
+              <div>
+                <div className="muted-2" style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Developer · Provider</div>
+                <h3>I'm shipping code</h3>
+              </div>
+              <p>Accept milestones, deliver to GitHub, and get paid the moment your work is approved.</p>
+              <ul className="role-bullets">
+                <li><Ico.check />Submit code per milestone — AI-reviewed automatically</li>
+                <li><Ico.check />Trigger on-chain release of locked SOL on approval</li>
+                <li><Ico.check />Build a verifiable on-chain delivery history</li>
+              </ul>
+              <div className="role-card-cta"><span>Continue as developer</span><Ico.arrowR /></div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function RoleCard({
-  tag,
-  title,
-  sub,
-  description,
-  bullets,
-  cta,
-  onClick,
-  required,
-}: {
-  tag: string;
-  title: string;
-  sub: string;
-  description: string;
-  bullets: string[];
-  cta: string;
-  onClick: () => void;
-  required?: string;
-}) {
-  return (
-    <button className="role-card" onClick={onClick} type="button">
-      <div className="role-card-tag">{tag}</div>
-      <div className="role-card-title">
-        <h3>{title}</h3>
-        <span>{sub}</span>
-      </div>
-      <p className="role-card-desc">{description}</p>
-      <ul className="role-card-list">
-        {bullets.map((b) => (
-          <li key={b}>
-            <span className="rcl-mark">▸</span>
-            {b}
-          </li>
-        ))}
-      </ul>
-      {required && (
-        <div className="role-card-required">
-          <span className="rcl-mark">⬡</span> {required}
-        </div>
-      )}
-      <div className="role-card-cta">
-        <span>{cta}</span>
-        <span className="arrow">→</span>
-      </div>
-    </button>
   );
 }
