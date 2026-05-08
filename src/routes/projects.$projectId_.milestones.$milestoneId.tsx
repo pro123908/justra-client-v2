@@ -113,6 +113,9 @@ export default function MilestoneDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  // analyze section visibility (consumer only, lazy — don't auto-fetch on page load)
+  const [showAnalyze, setShowAnalyze] = useState(false);
+
   // deposit flow (consumer only, when status === PENDING_DEPOSIT)
   const [depositStep, setDepositStep] = useState<
     "idle" | "method" | "review" | "signing" | "broadcasting" | "success" | "error"
@@ -188,12 +191,6 @@ export default function MilestoneDetailPage() {
   const isActive = milestone.status === MilestoneStatus.ACTIVE;
   const isDisputed = milestone.status === MilestoneStatus.DISPUTED;
   const showCodeReport = isActive || isDisputed;
-  console.log(
-    "🚀 ~ MilestoneDetailPage ~ needsDeposit:",
-    needsDeposit,
-    milestone.status,
-    MilestoneStatus.WAITING_FOR_DEPOSIT,
-  );
 
   const handleStartDeposit = () => {
     setDepositError("");
@@ -692,11 +689,43 @@ export default function MilestoneDetailPage() {
                 />
               </div>
             )}
-            {showCodeReport && isConsumer && (
-              <div>
-                <h3 className="h-display" style={{ fontSize: 15, marginBottom: 14 }}>
-                  Delivery · analysis history
+            {showCodeReport && isConsumer && !showAnalyze && (
+              <div className="card card-pad">
+                <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 14px" }}>
+                  Actions
                 </h3>
+                <p className="muted" style={{ marginTop: 0, marginBottom: 20, lineHeight: 1.6 }}>
+                  Run an AI code review against the milestone requirements, or release funds
+                  directly to the provider.
+                </p>
+                <div className="row gap-10">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowAnalyze(true)}
+                    disabled={isDisputed}
+                  >
+                    Analyze Code
+                  </button>
+                  <button className="btn" onClick={handleReleaseFunds} disabled={isDisputed}>
+                    Release Funds
+                  </button>
+                </div>
+              </div>
+            )}
+            {showCodeReport && isConsumer && showAnalyze && (
+              <div>
+                <div className="row gap-8" style={{ marginBottom: 14 }}>
+                  <h3 className="h-display" style={{ fontSize: 15, margin: 0 }}>
+                    Delivery · analysis history
+                  </h3>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 11 }}
+                    onClick={() => setShowAnalyze(false)}
+                  >
+                    ← Back
+                  </button>
+                </div>
                 <CodeReport
                   milestoneId={milestoneId}
                   githubRepo={milestone.githubRepo}
