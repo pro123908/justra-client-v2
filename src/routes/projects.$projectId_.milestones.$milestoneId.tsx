@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
-import Navbar from "@/components/app/Navbar";
 import Modal from "@/components/app/Modal";
+import { AppShell } from "@/components/app/AppShell";
+import { StatusPill } from "@/components/app/StatusPill";
+import { Ico } from "@/components/app/Icons";
 import { useAuth } from "@/lib/auth";
 import { formatSol } from "@/lib/utils";
 import {
@@ -20,7 +22,6 @@ import {
   sha256,
 } from "@/lib/solana";
 import CodeReport from "@/components/milestone/CodeReport";
-import "@/components/git-escrow.css";
 
 const PLATFORM_FEE_BPS = 250;
 
@@ -134,7 +135,8 @@ export default function MilestoneDetailPage() {
       .then((m) => {
         setMilestone(m);
         if (m.project?.id) {
-          projectApi.get(token, m.project.id)
+          projectApi
+            .get(token, m.project.id)
             .then((p) => setProjectMembers(p.members ?? []))
             .catch(() => {});
         }
@@ -147,41 +149,33 @@ export default function MilestoneDetailPage() {
 
   if (loading) {
     return (
-      <div className="git-escrow-root">
-        <div className="wrap">
-          <Navbar />
-          <div className="empty-state" style={{ marginTop: 60 }}>
-            <div className="ic">…</div>
-            <h3>Loading milestone</h3>
+      <AppShell>
+        <div className="page">
+          <div style={{ textAlign: "center", padding: "80px 0", color: "var(--ink-4)" }}>
+            Loading milestone…
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   if (!milestone || fetchError) {
     return (
-      <div className="git-escrow-root">
-        <div className="wrap">
-          <Navbar />
-          <div className="empty-state" style={{ marginTop: 60 }}>
-            <div className="ic">!</div>
-            <h3>Milestone not found</h3>
-            <p>This milestone doesn't exist or the link is invalid.</p>
-            <Link
-              to={`/projects/${projectId}`}
-              className="btn-action"
-              style={{ textDecoration: "none" }}
-            >
+      <AppShell>
+        <div className="page">
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 12 }}>
+              Milestone not found
+            </div>
+            <button className="btn" onClick={() => navigate(`/projects/${projectId}`)}>
               ← Back to project
-            </Link>
+            </button>
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
-  const group = statusGroup(milestone.status);
   const isProvider = user.role === "provider";
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
   const isConsumer = user.role === "consumer";
@@ -342,251 +336,282 @@ export default function MilestoneDetailPage() {
   };
 
   return (
-    <div className="git-escrow-root">
-      <div className="wrap">
-        <Navbar />
+    <AppShell>
+      <div className="page">
+        {/* Breadcrumb */}
+        <div className="crumb">
+          <a onClick={() => navigate("/projects")}>Projects</a>
+          <span className="sep">/</span>
+          <a onClick={() => navigate(`/projects/${projectId}`)}>
+            {milestone.project?.title ?? "Project"}
+          </a>
+          <span className="sep">/</span>
+          <span className="now">{milestone.title}</span>
+        </div>
 
-        <div className="proj-header">
+        {/* detail-head */}
+        <div className="detail-head">
           <div>
-            <div className="crumb">
-              <Link to="/dashboard">Dashboard</Link>
-              <span className="sep">/</span>
-              <Link to={`/projects/${projectId}`}>{milestone.project?.title ?? projectId}</Link>
-              <span className="sep">/</span>
-              <span style={{ color: "var(--neon)" }}>{milestone.title}</span>
+            <div className="row gap-12" style={{ marginBottom: 8 }}>
+              <span className="muted-2 mono" style={{ fontSize: 13 }}>
+                #{milestone.id}
+              </span>
+              <StatusPill status={milestone.status} />
             </div>
-            <div className="ph-id">▸ {milestone.id}</div>
             <h1>{milestone.title}</h1>
-            <div className="ph-meta">
-              <span className={"ms-status " + group}>
-                <span className="d" />
-                {statusLabel(milestone.status)}
-              </span>
+            <div className="meta">
               <span>
-                role <b style={{ color: "var(--neon)" }}>{user.role.toUpperCase()}</b>
+                <b>Role · </b>
+                {user.role?.toUpperCase()}
               </span>
+              {milestone.provider && (
+                <span>
+                  <b>Provider · </b>
+                  <span className="mono">{shortenAddr(milestone.provider.publicKey)}</span>
+                </span>
+              )}
             </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-            <Link
-              to={`/projects/${projectId}`}
-              className="btn"
-              style={{ textDecoration: "none" }}
-            >
-              ← Back to project
-            </Link>
+          <div className="row gap-8">
+            <button className="btn" onClick={() => navigate(`/projects/${projectId}`)}>
+              ← Back
+            </button>
             {canAssignProvider && (
-              <button className="btn-action" onClick={() => setAssignOpen(true)}>
-                <span className="plus">⚙</span>{" "}
-                {milestone.provider ? "Reassign Provider" : "Assign Provider"}
+              <button className="btn" onClick={() => setAssignOpen(true)}>
+                <Ico.user /> {milestone.provider ? "Reassign provider" : "Assign provider"}
               </button>
             )}
           </div>
         </div>
 
-        {/* Hero */}
-        <div className="ms-detail" style={{ marginBottom: 32 }}>
-          {/* Consumer deposit flow */}
-          {needsDeposit && (
-            <div className="deposit-band" style={{ marginTop: 32 }}>
-              <div className="deposit-band-head">
-                <div>
-                  <div className="form-label" style={{ fontSize: 13 }}>
-                    ▸ Action required · escrow deposit
-                  </div>
-                  <h3 className="deposit-title">Fund this milestone to start work</h3>
-                  <p className="deposit-sub">
-                    Lock <b>◎ {formatSol(milestone.amount)}</b> SOL into the escrow PDA so the
-                    developer can begin. Funds release only after you approve the delivery.
-                  </p>
-                </div>
-                <div className="deposit-amount-card">
-                  <span className="lbl">Amount due</span>
-                  <span className="val">◎ {formatSol(milestone.amount)}</span>
-                  <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
-                </div>
-              </div>
-              {!milestone.provider && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "12px 16px",
-                    borderRadius: 6,
-                    background: "rgba(250,204,21,0.08)",
-                    border: "1px solid rgba(250,204,21,0.35)",
-                    marginBottom: 12,
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>⚠</span>
-                  <span style={{ fontSize: 13, color: "var(--ink-mute)" }}>
-                    No provider has been assigned to this milestone yet. Assign a provider before
-                    making a deposit.
-                  </span>
-                </div>
-              )}
-              <div className="deposit-meta-row">
-                <span className="ms-chip">
-                  <span className="k">PDA</span>
-                  <span className="v">
-                    {milestone.pda ? truncMiddle(milestone.pda, 8, 6) : "— pending"}
-                  </span>
-                </span>
-                <span className="ms-chip">
-                  <span className="k">Provider</span>
-                  <span className="v">
-                    {milestone.provider ? shortenAddr(milestone.provider.publicKey) : "— not assigned"}
-                  </span>
-                </span>
-                <span className="ms-chip warn">
-                  <span className="k">Status</span>
-                  <span className="v">Awaiting deposit</span>
-                </span>
-              </div>
-              <div className="deposit-actions">
-                <button
-                  className="btn btn-primary"
-                  onClick={handleStartDeposit}
-                  disabled={!milestone.provider}
-                >
-                  Fund milestone — ◎ {formatSol(milestone.amount)} SOL / ${fiatTotal}
-                </button>
-                <span className="deposit-hint">
-                  {milestone.provider
-                    ? "Choose to pay with crypto (SOL) or fiat (card)."
-                    : "Assign a provider first to enable deposit."}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Active milestone band — countdown to endDate */}
-          {isActive && (
-            <ActiveMilestoneBand
-              endDate={milestone.endDate}
-              amount={milestone.amount}
-              fundedAt={milestone.fundedAt}
-            />
-          )}
-
-          {/* Disputed — frozen banner */}
-          {isDisputed && (
+        {/* hero-band with escrow amount */}
+        <div className="hero-band" style={{ marginBottom: 24 }}>
+          <div className="hero-band-amount">
+            <div className="lbl">Locked in escrow</div>
+            <div className="val">◎ {formatSol(milestone.amount) || "0"} SOL</div>
+            <div className="sub">releases on approval</div>
+          </div>
+          <div>
             <div
+              className="muted-2"
               style={{
-                marginTop: 32,
-                border: "1px solid var(--red, #ef4444)",
-                borderRadius: 8,
-                padding: "20px 24px",
-                background: "rgba(239,68,68,0.06)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
               }}
             >
-              <div className="form-label" style={{ fontSize: 13, color: "var(--red, #ef4444)" }}>
-                ▸ Milestone disputed · escrow frozen
+              Status
+            </div>
+            <div className="h-display" style={{ fontSize: 18, marginTop: 6 }}>
+              {statusLabel(milestone.status)}
+            </div>
+            {milestone.pda && (
+              <div className="muted-2 mono" style={{ fontSize: 12, marginTop: 4 }}>
+                PDA: {truncMiddle(milestone.pda, 8, 6)}
               </div>
-              <p style={{ margin: 0, fontSize: 13, color: "var(--ink-mute)" }}>
-                This milestone has been disputed. ◎ {formatSol(milestone.amount)} SOL remains locked
-                in the escrow PDA pending arbitration. No further actions are available until the
-                dispute is resolved.
-              </p>
-            </div>
-          )}
+            )}
+          </div>
+        </div>
 
-          <div className="ms-hero">
-            <div className="ms-hero-amount">
-              <span className="lbl">Escrow value</span>
-              <span className="val">◎ {formatSol(milestone.amount) || "0"}</span>
-              <span className="sub">SOL · locked on approval</span>
+        {/* Consumer deposit flow */}
+        {needsDeposit && (
+          <div className="deposit-band" style={{ marginBottom: 24 }}>
+            <div className="deposit-band-head">
+              <div>
+                <div className="form-label" style={{ fontSize: 13 }}>
+                  ▸ Action required · escrow deposit
+                </div>
+                <h3 className="deposit-title">Fund this milestone to start work</h3>
+                <p className="deposit-sub">
+                  Lock <b>◎ {formatSol(milestone.amount)}</b> SOL into the escrow PDA so the
+                  developer can begin. Funds release only after you approve the delivery.
+                </p>
+              </div>
+              <div className="deposit-amount-card">
+                <span className="lbl">Amount due</span>
+                <span className="val">◎ {formatSol(milestone.amount)}</span>
+                <span className="sub">deadline {fmtDateTime(milestone.depositDeadline)}</span>
+              </div>
             </div>
-            <div className="ms-hero-status">
-              <span className={"ms-status " + group + " lg"}>
-                <span className="d" /> {statusLabel(milestone.status)}
+            {!milestone.provider && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "12px 16px",
+                  borderRadius: 6,
+                  background: "rgba(250,204,21,0.08)",
+                  border: "1px solid rgba(250,204,21,0.35)",
+                  marginBottom: 12,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>⚠</span>
+                <span style={{ fontSize: 13, color: "var(--ink-mute)" }}>
+                  No provider has been assigned to this milestone yet. Assign a provider before
+                  making a deposit.
+                </span>
+              </div>
+            )}
+            <div className="deposit-meta-row">
+              <span className="ms-chip">
+                <span className="k">PDA</span>
+                <span className="v">
+                  {milestone.pda ? truncMiddle(milestone.pda, 8, 6) : "— pending"}
+                </span>
               </span>
-              {milestone.provider && (
-                <div className="ms-hero-provider">
-                  <span>Provider</span> <b>{shortenAddr(milestone.provider.publicKey)}</b>
+              <span className="ms-chip">
+                <span className="k">Provider</span>
+                <span className="v">
+                  {milestone.provider
+                    ? shortenAddr(milestone.provider.publicKey)
+                    : "— not assigned"}
+                </span>
+              </span>
+              <span className="ms-chip warn">
+                <span className="k">Status</span>
+                <span className="v">Awaiting deposit</span>
+              </span>
+            </div>
+            <div className="deposit-actions">
+              <button
+                className="btn btn-primary"
+                onClick={handleStartDeposit}
+                disabled={!milestone.provider}
+              >
+                Fund milestone — ◎ {formatSol(milestone.amount)} SOL / ${fiatTotal}
+              </button>
+              <span className="deposit-hint">
+                {milestone.provider
+                  ? "Choose to pay with crypto (SOL) or fiat (card)."
+                  : "Assign a provider first to enable deposit."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Active milestone band — countdown to endDate */}
+        {isActive && (
+          <ActiveMilestoneBand
+            endDate={milestone.endDate}
+            amount={milestone.amount}
+            fundedAt={milestone.fundedAt}
+          />
+        )}
+
+        {/* Disputed — frozen banner */}
+        {isDisputed && (
+          <div
+            style={{
+              marginBottom: 24,
+              border: "1px solid var(--red, #ef4444)",
+              borderRadius: 8,
+              padding: "20px 24px",
+              background: "rgba(239,68,68,0.06)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div className="form-label" style={{ fontSize: 13, color: "var(--red, #ef4444)" }}>
+              ▸ Milestone disputed · escrow frozen
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-mute)" }}>
+              This milestone has been disputed. ◎ {formatSol(milestone.amount)} SOL remains locked
+              in the escrow PDA pending arbitration. No further actions are available until the
+              dispute is resolved.
+            </p>
+          </div>
+        )}
+
+        {/* Main content: two-col */}
+        <div className="two-col">
+          <div className="stack gap-24">
+            {/* Scope card */}
+            <div className="card card-pad">
+              <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 10px" }}>
+                Scope
+              </h3>
+              <p className="muted" style={{ marginTop: 0, lineHeight: 1.6 }}>
+                {milestone.description || "—"}
+              </p>
+
+              {milestone.rejectionReason && (
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: "12px 16px",
+                    background: "var(--danger-bg)",
+                    borderRadius: 8,
+                    color: "var(--danger-ink)",
+                    fontSize: 13,
+                  }}
+                >
+                  <strong>Rejection reason:</strong> {milestone.rejectionReason}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Grid */}
-          <div className="ms-detail-grid">
-            <div className="ms-cell">
-              <div className="form-label">▸ Start</div>
-              <div className="ms-detail-val">{fmtDate(milestone.startDate)}</div>
-            </div>
-            <div className="ms-cell">
-              <div className="form-label">▸ End</div>
-              <div className="ms-detail-val">{fmtDate(milestone.endDate)}</div>
-            </div>
-            <div className="ms-cell">
-              <div className="form-label">▸ Created</div>
-              <div className="ms-detail-val">{fmtDate(milestone.createdAt)}</div>
-            </div>
-            <div className="ms-cell">
-              <div className="form-label">▸ Updated</div>
-              <div className="ms-detail-val">{fmtDate(milestone.updatedAt)}</div>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="form-row" style={{ marginTop: 18 }}>
-            <div className="form-label">▸ Description / acceptance criteria</div>
-            <div className="ms-detail-desc">{milestone.description || "—"}</div>
-          </div>
-
-          {/* Technical fields */}
-          <div className="ms-detail-grid two" style={{ marginTop: 18 }}>
-            <div className="ms-cell mono-cell">
-              <div className="form-label">▸ Escrow PDA</div>
-              <div className="ms-mono" title={milestone.pda || ""}>
-                {milestone.pda ? truncMiddle(milestone.pda, 10, 8) : "— not derived"}
-              </div>
-            </div>
-            <div className="ms-cell">
-              <div className="form-label">▸ Deposit deadline</div>
-              <div className="ms-detail-val">{fmtDateTime(milestone.depositDeadline)}</div>
-            </div>
-            <div className="ms-cell">
-              <div className="form-label">▸ Funded at</div>
-              <div className="ms-detail-val">{fmtDateTime(milestone.fundedAt)}</div>
-            </div>
-          </div>
-
-          {/* Rejection reason */}
-          {milestone.rejectionReason && (
-            <div className="form-row" style={{ marginTop: 18 }}>
-              <div className="form-label" style={{ color: "var(--red)" }}>
-                ▸ Rejection reason
-              </div>
-              <div className="ms-detail-desc" style={{ borderColor: "var(--red)" }}>
-                {milestone.rejectionReason}
-              </div>
-            </div>
-          )}
-
-          {/* Provider actions */}
-          {isActionable && (
-            <div style={{ marginTop: 32 }}>
-              <div
-                style={{
-                  borderTop: "1px dashed var(--line)",
-                  paddingTop: 24,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 16,
-                }}
-              >
-                <div className="form-label" style={{ fontSize: 13 }}>
-                  ▸ Provider action required
+            {/* Dates card */}
+            <div className="card card-pad">
+              <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 14px" }}>
+                Timeline
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <div
+                    className="muted-2"
+                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
+                  >
+                    Start
+                  </div>
+                  <div style={{ marginTop: 4, fontWeight: 600 }}>
+                    {fmtDate(milestone.startDate)}
+                  </div>
                 </div>
+                <div>
+                  <div
+                    className="muted-2"
+                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
+                  >
+                    End
+                  </div>
+                  <div style={{ marginTop: 4, fontWeight: 600 }}>{fmtDate(milestone.endDate)}</div>
+                </div>
+                <div>
+                  <div
+                    className="muted-2"
+                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
+                  >
+                    Created
+                  </div>
+                  <div style={{ marginTop: 4, fontWeight: 600 }}>
+                    {fmtDate(milestone.createdAt)}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    className="muted-2"
+                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
+                  >
+                    Deposit deadline
+                  </div>
+                  <div style={{ marginTop: 4, fontWeight: 600 }}>
+                    {fmtDateTime(milestone.depositDeadline)}
+                  </div>
+                </div>
+              </div>
+            </div>
 
+            {/* Provider action (isActionable) */}
+            {isActionable && (
+              <div className="card card-pad">
+                <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 14px" }}>
+                  Provider action required
+                </h3>
                 {!rejecting ? (
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div className="row gap-10">
                     <button
                       className="btn btn-primary"
                       onClick={handleAccept}
@@ -606,16 +631,18 @@ export default function MilestoneDetailPage() {
                     </button>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <label className="form-label">▸ Rejection reason (required, 4+ chars)</label>
-                    <textarea
-                      className="form-textarea"
-                      placeholder="e.g. Scope is too broad — please split into separate milestones."
-                      value={rejectNote}
-                      onChange={(e) => setRejectNote(e.target.value)}
-                      autoFocus
-                    />
-                    <div style={{ display: "flex", gap: 8 }}>
+                  <div className="stack gap-10">
+                    <div className="field">
+                      <label className="field-label">Rejection reason (required, 4+ chars)</label>
+                      <textarea
+                        className="textarea"
+                        placeholder="e.g. Scope is too broad — please split into separate milestones."
+                        value={rejectNote}
+                        onChange={(e) => setRejectNote(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="row gap-8">
                       <button
                         className="btn"
                         onClick={() => {
@@ -637,64 +664,96 @@ export default function MilestoneDetailPage() {
                     </div>
                   </div>
                 )}
+                {actionError && (
+                  <div style={{ color: "var(--danger)", fontSize: 13, marginTop: 8 }}>
+                    {actionError}
+                  </div>
+                )}
+              </div>
+            )}
 
-                {actionError && <div className="auth-error">{actionError}</div>}
+            {/* CodeReport sections */}
+            {showCodeReport && isProvider && (
+              <div>
+                <h3 className="h-display" style={{ fontSize: 15, marginBottom: 14 }}>
+                  Code submission
+                </h3>
+                <CodeReport
+                  milestoneId={milestoneId}
+                  githubRepo={milestone.githubRepo}
+                  token={token}
+                  onReleaseFunds={async () => {}}
+                  onRepoSubmit={async (repoUrl) => {
+                    const updated = await milestoneApi.submitRepo(token!, milestoneId, repoUrl);
+                    setMilestone(updated);
+                  }}
+                  role="provider"
+                  isDisabled={isDisputed}
+                />
+              </div>
+            )}
+            {showCodeReport && isConsumer && (
+              <div>
+                <h3 className="h-display" style={{ fontSize: 15, marginBottom: 14 }}>
+                  Delivery · analysis history
+                </h3>
+                <CodeReport
+                  milestoneId={milestoneId}
+                  githubRepo={milestone.githubRepo}
+                  token={token}
+                  onReleaseFunds={handleReleaseFunds}
+                  onDispute={isDisputed ? undefined : handleDispute}
+                  role="consumer"
+                  isDisabled={isDisputed}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar */}
+          <div className="stack gap-16">
+            <div className="card card-pad">
+              <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 14px" }}>
+                Team
+              </h3>
+              <div className="stack gap-12">
+                <div className="row gap-12">
+                  <div className="av av-lg">{user.initial}</div>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>You (client)</div>
+                    <div className="muted-2" style={{ fontSize: 12 }}>
+                      {user.short}
+                    </div>
+                  </div>
+                </div>
+                {milestone.provider && (
+                  <div className="row gap-12">
+                    <div className="av av-lg">{milestone.provider.publicKey[0].toUpperCase()}</div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>Developer</div>
+                      <div className="muted-2 mono" style={{ fontSize: 12 }}>
+                        {shortenAddr(milestone.provider.publicKey)}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+            <div className="alert tip">
+              <Ico.shield className="icon" />
+              <div>
+                <div className="title">Funds are on-chain</div>
+                <div className="body">
+                  ◎ {formatSol(milestone.amount)} SOL is locked in escrow PDA{" "}
+                  {milestone.pda ? truncMiddle(milestone.pda, 6, 4) : "(pending)"}.
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        {/* Provider-only: code submission + analysis when milestone ACTIVE or DISPUTED */}
-        {showCodeReport && isProvider && (
-          <div style={{ marginTop: 32 }}>
-            <div className="section-h" style={{ marginBottom: 14 }}>
-              <span>▸ CODE SUBMISSION</span>
-              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
-                {isDisputed
-                  ? "Frozen · dispute in progress"
-                  : "Submit your codebase and run analysis"}
-              </span>
-            </div>
-            <CodeReport
-              milestoneId={milestoneId}
-              githubRepo={milestone.githubRepo}
-              token={token}
-              onReleaseFunds={async () => {}}
-              onRepoSubmit={async (repoUrl) => {
-                const updated = await milestoneApi.submitRepo(token!, milestoneId, repoUrl);
-                setMilestone(updated);
-              }}
-              role="provider"
-              isDisabled={isDisputed}
-            />
-          </div>
-        )}
-
-        {/* Consumer view of active/disputed milestone — generate report */}
-        {showCodeReport && isConsumer && (
-          <div style={{ marginTop: 32 }}>
-            <div className="section-h" style={{ marginBottom: 14 }}>
-              <span>▸ DELIVER CODE · ANALYSIS HISTORY</span>
-              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
-                {isDisputed
-                  ? "Frozen · dispute in progress"
-                  : "Run fresh analyses and inspect stored review snapshots before release"}
-              </span>
-            </div>
-            <CodeReport
-              milestoneId={milestoneId}
-              githubRepo={milestone.githubRepo}
-              token={token}
-              onReleaseFunds={handleReleaseFunds}
-              onDispute={isDisputed ? undefined : handleDispute}
-              role="consumer"
-              isDisabled={isDisputed}
-            />
-          </div>
-        )}
-
       </div>
 
+      {/* AssignProviderModal */}
       {canAssignProvider && (
         <AssignProviderModal
           open={assignOpen}
@@ -889,19 +948,19 @@ export default function MilestoneDetailPage() {
                 </div>
 
                 <div className="fiat-form">
-                  <div className="form-row">
-                    <label className="form-label">▸ Cardholder name</label>
+                  <div className="field">
+                    <label className="field-label">▸ Cardholder name</label>
                     <input
-                      className="form-input"
+                      className="input"
                       placeholder="Ada Lovelace"
                       value={fiatCard.name}
                       onChange={(e) => setFiatCard({ ...fiatCard, name: e.target.value })}
                     />
                   </div>
-                  <div className="form-row">
-                    <label className="form-label">▸ Card number</label>
+                  <div className="field">
+                    <label className="field-label">▸ Card number</label>
                     <input
-                      className="form-input mono"
+                      className="input mono"
                       placeholder="4242 4242 4242 4242"
                       inputMode="numeric"
                       value={fiatCard.number}
@@ -911,10 +970,10 @@ export default function MilestoneDetailPage() {
                     />
                   </div>
                   <div className="fiat-row-2">
-                    <div className="form-row">
-                      <label className="form-label">▸ Expiry (MM/YY)</label>
+                    <div className="field">
+                      <label className="field-label">▸ Expiry (MM/YY)</label>
                       <input
-                        className="form-input mono"
+                        className="input mono"
                         placeholder="12/27"
                         inputMode="numeric"
                         value={fiatCard.exp}
@@ -923,10 +982,10 @@ export default function MilestoneDetailPage() {
                         }
                       />
                     </div>
-                    <div className="form-row">
-                      <label className="form-label">▸ CVC</label>
+                    <div className="field">
+                      <label className="field-label">▸ CVC</label>
                       <input
-                        className="form-input mono"
+                        className="input mono"
                         placeholder="123"
                         inputMode="numeric"
                         value={fiatCard.cvc}
@@ -1030,7 +1089,7 @@ export default function MilestoneDetailPage() {
           </div>
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
 
@@ -1078,12 +1137,15 @@ function AssignProviderModal({
     <Modal
       open={open}
       onClose={onClose}
-      tag="MILESTONE"
       title="Assign provider"
       footer={
-        <div className="modal-foot">
+        <>
           <div style={{ color: "var(--ink-dim)", fontSize: 12 }}>
-            {error ? <span style={{ color: "red" }}>{error}</span> : "Select a provider from the project members list"}
+            {error ? (
+              <span style={{ color: "red" }}>{error}</span>
+            ) : (
+              "Select a provider from the project members list"
+            )}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn" onClick={onClose} disabled={submitting}>
@@ -1097,12 +1159,12 @@ function AssignProviderModal({
               {submitting ? "Assigning…" : "Assign"}
             </button>
           </div>
-        </div>
+        </>
       }
     >
       <div className="form-grid">
         {providers.length === 0 ? (
-          <div className="access-empty">
+          <div className="muted-2" style={{ padding: "16px 0" }}>
             No providers have joined this project yet. Invite one from the project page first.
           </div>
         ) : (
@@ -1121,13 +1183,14 @@ function AssignProviderModal({
                   textAlign: "left",
                 }}
               >
-                <div className="ar-avatar">{p.publicKey.charAt(0).toUpperCase()}</div>
-                <div className="ar-body">
-                  <div className="ar-name">{shortenAddr(p.publicKey)}</div>
-                  <div className="ar-meta">{p.publicKey}</div>
+                <div className="av av-sm">{p.publicKey.charAt(0).toUpperCase()}</div>
+                <div className="meta">
+                  <div className="name">{shortenAddr(p.publicKey)}</div>
+                  <div className="sub">{p.publicKey}</div>
                 </div>
-                <span className="ms-status approved">
-                  <span className="d" /> Active
+                <span className="pill pill-ok">
+                  <span className="dot" />
+                  Active
                 </span>
                 {selectedId === p.id && (
                   <span style={{ color: "var(--neon)", fontSize: 14, marginLeft: 4 }}>✓</span>
