@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import Navbar from "@/components/app/Navbar";
+import { useNavigate, useParams } from "react-router-dom";
 import Modal from "@/components/app/Modal";
-import { SuccessModal } from "@/components/app/SuccessModal";
+import { AppShell } from "@/components/app/AppShell";
+import { PageHead } from "@/components/app/PageHead";
+import { StatusPill, STATUS_MAP } from "@/components/app/StatusPill";
+import { Ico } from "@/components/app/Icons";
 import { useAuth } from "@/lib/auth";
 import { formatSol } from "@/lib/utils";
 import {
@@ -20,7 +22,6 @@ import {
   type ChatMessage,
   type ExtractedMilestone,
 } from "@/lib/api";
-import "@/components/git-escrow.css";
 
 const shortenAddr = (addr: string) =>
   addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
@@ -33,41 +34,6 @@ const fmtDate = (s?: string | null) => {
     .toLocaleDateString(undefined, { month: "short", day: "2-digit", year: "numeric" })
     .toUpperCase();
 };
-
-function statusGroup(s: MilestoneStatus): "pending" | "approved" | "rejected" {
-  switch (s) {
-    case MilestoneStatus.PENDING_PROVIDER_APPROVAL:
-    case MilestoneStatus.WAITING_FOR_DEPOSIT:
-      return "pending";
-    case MilestoneStatus.ACTIVE:
-    case MilestoneStatus.IN_PROGRESS:
-    case MilestoneStatus.COMPLETED:
-      return "approved";
-    case MilestoneStatus.REJECTED:
-      return "rejected";
-    default:
-      return "pending";
-  }
-}
-
-function statusLabel(s: MilestoneStatus) {
-  switch (s) {
-    case MilestoneStatus.PENDING_PROVIDER_APPROVAL:
-      return "Pending provider approval";
-    case MilestoneStatus.ACTIVE:
-      return "Active · awaiting delivery";
-    case MilestoneStatus.REJECTED:
-      return "Rejected";
-    case MilestoneStatus.WAITING_FOR_DEPOSIT:
-      return "Awaiting deposit";
-    case MilestoneStatus.IN_PROGRESS:
-      return "In progress";
-    case MilestoneStatus.COMPLETED:
-      return "Completed";
-    default:
-      return String(s);
-  }
-}
 
 export default function ProjectDetailPage() {
   const { user, token } = useAuth();
@@ -119,33 +85,28 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="git-escrow-root">
-        <div className="wrap">
-          <Navbar />
-          <div className="empty-state" style={{ marginTop: 60 }}>
-            <div className="ic">…</div>
-            <h3>Loading project</h3>
+      <AppShell>
+        <div className="page">
+          <div style={{ textAlign: "center", padding: "80px 0", color: "var(--ink-4)" }}>
+            Loading project…
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   if (!project || fetchError) {
     return (
-      <div className="git-escrow-root">
-        <div className="wrap">
-          <Navbar />
-          <div className="empty-state" style={{ marginTop: 60 }}>
-            <div className="ic">!</div>
-            <h3>Project not found</h3>
-            <p>This project doesn't exist or the link is invalid.</p>
-            <Link to="/dashboard" className="btn-action" style={{ textDecoration: "none" }}>
-              ← Back to dashboard
-            </Link>
+      <AppShell>
+        <div className="page">
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 12 }}>Project not found</div>
+            <button className="btn" onClick={() => navigate("/projects")}>
+              ← Back to projects
+            </button>
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
@@ -156,19 +117,16 @@ export default function ProjectDetailPage() {
 
   if (!isOwner && !isMember) {
     return (
-      <div className="git-escrow-root">
-        <div className="wrap">
-          <Navbar />
-          <div className="empty-state" style={{ marginTop: 60 }}>
-            <div className="ic">!</div>
-            <h3>Access denied</h3>
-            <p>You don't have access to this project.</p>
-            <Link to="/dashboard" className="btn-action" style={{ textDecoration: "none" }}>
-              ← Back to dashboard
-            </Link>
+      <AppShell>
+        <div className="page">
+          <div style={{ textAlign: "center", padding: "80px 0" }}>
+            <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 12 }}>Project not found</div>
+            <button className="btn" onClick={() => navigate("/projects")}>
+              ← Back to projects
+            </button>
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
@@ -186,167 +144,246 @@ export default function ProjectDetailPage() {
     );
   }
 
+  const pct =
+    milestones.length > 0
+      ? Math.round(
+          (milestones.filter((m) => m.status === MilestoneStatus.COMPLETED).length /
+            milestones.length) *
+            100,
+        )
+      : 0;
+
   return (
-    <div className="git-escrow-root">
-      <div className="wrap">
-        <Navbar />
+    <AppShell>
+      <div className="page">
+        {/* Breadcrumb */}
+        <div className="crumb">
+          <a onClick={() => navigate("/projects")}>Projects</a>
+          <span className="sep">/</span>
+          <span className="now">{project.title}</span>
+        </div>
 
-        <div className="proj-header">
+        {/* detail-head */}
+        <div className="detail-head">
           <div>
-            <div className="crumb">
-              <Link to="/dashboard">Dashboard</Link>
-              <span className="sep">/</span>
-              <span>Projects</span>
-              <span className="sep">/</span>
-              <span style={{ color: "var(--neon)" }}>{project.id}</span>
+            <div className="row gap-12" style={{ marginBottom: 8 }}>
+              <span className="muted-2 mono" style={{ fontSize: 13 }}>
+                #{project.id}
+              </span>
             </div>
-            <div className="ph-id">▸ {project.id}</div>
             <h1>{project.title}</h1>
-            <div className="ph-meta">
+            <div className="meta">
               <span>
-                <b>{milestones.length}</b> milestones
+                <b>Created · </b>
+                {fmtDate(project.createdAt)}
               </span>
               <span>
-                created <b>{fmtDate(project.createdAt)}</b>
+                <b>Role · </b>
+                {user.role?.toUpperCase()}
               </span>
-              <span>
-                role <b style={{ color: "var(--neon)" }}>{user.role.toUpperCase()}</b>
-              </span>
-              <span>
-                status{" "}
-                <b
-                  style={{
-                    color:
-                      project.status === ProjectCreationStatus.CREATION_SUCCESSFUL
-                        ? "var(--neon)"
-                        : project.status === ProjectCreationStatus.CREATION_FAILED
-                          ? "red"
-                          : "var(--ink-dim)",
-                  }}
-                >
-                  {project.status === ProjectCreationStatus.CREATION_SUCCESSFUL
-                    ? "SETUP COMPLETE"
-                    : project.status === ProjectCreationStatus.CREATION_FAILED
-                      ? "SETUP FAILED"
-                      : "PENDING SETUP"}
-                </b>
-              </span>
+              {providers.length > 0 && (
+                <span>
+                  <b>Providers · </b>
+                  {providers.length}
+                </span>
+              )}
             </div>
           </div>
-          {canManage && (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}
-            >
-              <button className="btn-action" onClick={() => setAccessOpen(true)}>
-                <span className="plus">⚙</span> Manage Access
-              </button>
-              <div
-                style={{
-                  color: "var(--ink-mute)",
-                  fontSize: 11,
-                  letterSpacing: "0.15em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {providers.length} provider{providers.length === 1 ? "" : "s"} · {invites.length}{" "}
-                pending
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div
-          className="section-bar"
-          style={{ marginTop: 28, borderBottom: "1px dashed var(--line)" }}
-        >
-          <div>
-            <h2 style={{ fontSize: 26 }}>Milestones</h2>
-            <div className="sub">
-              {canManage
-                ? "Define payable checkpoints. Each milestone awaits developer approval before activation."
-                : "Review and act on checkpoints assigned by the consumer."}
-            </div>
-          </div>
-          {canManage && (
-            <button className="btn-action" onClick={() => setAddOpen(true)}>
-              <span className="plus">+</span> Add Milestone
-            </button>
-          )}
-        </div>
-
-        {milestones.length === 0 ? (
-          <div className="empty-state">
-            <div className="ic">≡</div>
-            <h3>No milestones yet</h3>
-            <p>
-              {canManage
-                ? "Add the first milestone to break this project into verifiable, payable units of work."
-                : "The consumer hasn't defined any milestones yet. Check back soon."}
-            </p>
+          <div className="row gap-8">
             {canManage && (
-              <button className="btn-action" onClick={() => setAddOpen(true)}>
-                <span className="plus">+</span> Add first milestone
-              </button>
+              <>
+                <button className="btn" onClick={() => setAccessOpen(true)}>
+                  <Ico.user /> Manage access
+                </button>
+                <button className="btn btn-primary" onClick={() => setAddOpen(true)}>
+                  <Ico.plus /> Add milestone
+                </button>
+              </>
             )}
           </div>
-        ) : (
-          <div className="milestones">
-            {milestones.map((m, idx) => (
-              <button
-                key={m.id}
-                type="button"
-                className={"milestone milestone-row ms-row-" + statusGroup(m.status)}
-                onClick={() => navigate(`/projects/${projectId}/milestones/${m.id}`)}
+        </div>
+
+        {/* hero-band */}
+        <div className="hero-band">
+          <div className="hero-band-amount">
+            <div className="lbl">Project escrow</div>
+            <div className="val">◎ 0</div>
+            <div className="sub">
+              across {milestones.length} milestone{milestones.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+          <div className="row gap-24" style={{ alignItems: "stretch" }}>
+            <div>
+              <div
+                className="muted-2"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
               >
-                <div className="ms-num">{String(idx + 1).padStart(2, "0")}</div>
-                <div className="ms-body">
-                  <div className="ms-card-header">
-                    <h3 className="ms-title">{m.title}</h3>
-                    <div className="ms-amount-pill">
-                      <span className="ms-amount-value">
-                        ◎ {m.amount ? formatSol(m.amount) : "—"}
-                      </span>
-                      <span className="ms-amount-unit">SOL</span>
+                Released
+              </div>
+              <div className="h-display" style={{ fontSize: 22, marginTop: 4 }}>
+                ◎ 0
+              </div>
+            </div>
+            <div style={{ width: 1, background: "var(--brand-200)" }} />
+            <div>
+              <div
+                className="muted-2"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Locked
+              </div>
+              <div className="h-display" style={{ fontSize: 22, marginTop: 4 }}>
+                ◎ 0
+              </div>
+            </div>
+            <div style={{ width: 1, background: "var(--brand-200)" }} />
+            <div style={{ minWidth: 140 }}>
+              <div
+                className="muted-2"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Progress
+              </div>
+              <div className="h-display" style={{ fontSize: 22, marginTop: 4 }}>
+                {pct}%
+              </div>
+              <div className="progress" style={{ marginTop: 6 }}>
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* two-col: milestone list + sidebar */}
+        <div className="two-col">
+          <div>
+            <div className="row-between" style={{ marginBottom: 12 }}>
+              <h2 className="h-display h3" style={{ margin: 0 }}>
+                Milestones
+              </h2>
+            </div>
+            {milestones.length === 0 ? (
+              <div
+                className="card card-pad"
+                style={{ textAlign: "center", padding: "48px 24px", color: "var(--ink-4)" }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>No milestones yet</div>
+                <div style={{ fontSize: 13, marginBottom: 20 }}>
+                  {canManage
+                    ? "Add the first milestone to break this project into verifiable, payable units of work."
+                    : "The consumer hasn't defined any milestones yet. Check back soon."}
+                </div>
+                {canManage && (
+                  <button className="btn btn-primary" onClick={() => setAddOpen(true)}>
+                    <Ico.plus /> Add first milestone
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="ms-list">
+                {milestones.map((m, i) => {
+                  const meta = STATUS_MAP[m.status] ?? STATUS_MAP.draft;
+                  return (
+                    <button
+                      key={m.id}
+                      className={`ms-row ${meta.row}`}
+                      onClick={() => navigate(`/projects/${projectId}/milestones/${m.id}`)}
+                    >
+                      <div className="ms-num">{String(i + 1).padStart(2, "0")}</div>
+                      <div>
+                        <div className="ms-title">{m.title}</div>
+                        {m.description && <div className="ms-sub">{m.description}</div>}
+                        <div className="ms-meta">
+                          <StatusPill status={m.status} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="ms-amount">◎ {m.amount ? formatSol(m.amount) : "—"}</div>
+                        <div className="ms-amount-sub">SOL</div>
+                      </div>
+                      <Ico.arrowR className="ms-arrow" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="stack gap-16">
+            {/* Team card */}
+            <div className="card card-pad">
+              <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 12px" }}>
+                Team
+              </h3>
+              <div className="stack gap-12">
+                <div className="row gap-12">
+                  <div className="av av-lg">{user.initial}</div>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>You</div>
+                    <div className="muted-2" style={{ fontSize: 12 }}>
+                      Client · {user.short}
                     </div>
                   </div>
-                  {m.description && <p className="ms-desc">{m.description}</p>}
-                  <div className="ms-card-footer">
-                    <span className={"ms-status " + statusGroup(m.status)}>
-                      <span className="d" />
-                      {statusLabel(m.status)}
-                    </span>
-                    {(m.startDate || m.endDate) && (
-                      <span className="ms-meta-item">
-                        {fmtDate(m.startDate)} → {fmtDate(m.endDate)}
-                      </span>
-                    )}
-                    {m.provider && (
-                      <span className="ms-meta-item">
-                        Provider · {shortenAddr(m.provider.publicKey)}
-                      </span>
-                    )}
-                    {m.pda && (
-                      <span className="ms-chip" title={m.pda}>
-                        <span className="k">PDA</span>
-                        <span className="v">
-                          {m.pda.length > 10 ? `${m.pda.slice(0, 4)}…${m.pda.slice(-4)}` : m.pda}
-                        </span>
-                      </span>
-                    )}
-                    {m.fundedAt && (
-                      <span className="ms-chip ok">
-                        <span className="k">Funded</span>
-                        <span className="v">{fmtDate(m.fundedAt)}</span>
-                      </span>
-                    )}
-                  </div>
                 </div>
-              </button>
-            ))}
+                {providers.map((p) => (
+                  <div key={p.id} className="row gap-12">
+                    <div className="av av-lg">{p.publicKey?.[0]?.toUpperCase()}</div>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>Developer</div>
+                      <div className="muted-2 mono" style={{ fontSize: 12 }}>
+                        {shortenAddr(p.publicKey)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {invites.length > 0 && (
+                  <div className="muted-2" style={{ fontSize: 12, marginTop: 4 }}>
+                    +{invites.length} pending invite{invites.length !== 1 ? "s" : ""}
+                  </div>
+                )}
+              </div>
+              {canManage && (
+                <button
+                  className="btn btn-sm"
+                  style={{ width: "100%", justifyContent: "center", marginTop: 14 }}
+                  onClick={() => navigate(`/projects/${projectId}/invites`)}
+                >
+                  Manage invites
+                </button>
+              )}
+            </div>
+
+            {/* Escrow info */}
+            <div className="alert tip">
+              <Ico.shield className="icon" />
+              <div>
+                <div className="title">Escrow is on-chain</div>
+                <div className="body">
+                  Each milestone holds funds in its own program-derived address. Released SOL
+                  settles to the provider's wallet within ~2s of approval.
+                </div>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
+      {/* Modals */}
       {canManage && (
         <AddMilestoneModal
           open={addOpen}
@@ -361,7 +398,6 @@ export default function ProjectDetailPage() {
           onSubmit={(input) => milestoneApi.create(token!, projectId, input)}
         />
       )}
-
       {canManage && (
         <ManageAccessModal
           open={accessOpen}
@@ -386,15 +422,13 @@ export default function ProjectDetailPage() {
           }}
         />
       )}
-
-      <SuccessModal
-        open={!!createdMs}
-        onClose={() => setCreatedMs(null)}
-        tag="MILESTONE"
-        title="Milestone Created."
-        message="Milestone is currently pending. Once the developer approves it, it will start."
-      />
-    </div>
+      {/* Replace SuccessModal with Modal */}
+      <Modal open={!!createdMs} onClose={() => setCreatedMs(null)} title="Milestone created">
+        <p className="muted" style={{ marginTop: 0, lineHeight: 1.6 }}>
+          Milestone is currently pending. Once the developer approves it, it will start.
+        </p>
+      </Modal>
+    </AppShell>
   );
 }
 
@@ -421,6 +455,7 @@ function AddMilestoneModal({
   const allProviders = [...providers, ...invitedProviders];
 
   const { projectId = "" } = useParams();
+  const navigate = useNavigate();
   const [providerId, setProviderId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -471,37 +506,38 @@ function AddMilestoneModal({
     <Modal
       open={open}
       onClose={onClose}
-      tag="NEW MILESTONE"
       title="Define checkpoint"
       footer={
-        <div className="modal-foot">
-          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            <button className="btn" onClick={onClose} disabled={submitting}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" disabled={!valid || submitting} onClick={submit}>
-              {submitting ? "Creating…" : "Create Milestone"}
-            </button>
-          </div>
+        <div className="row gap-8" style={{ marginLeft: "auto" }}>
+          <button className="btn" onClick={onClose} disabled={submitting}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" disabled={!valid || submitting} onClick={submit}>
+            {submitting ? "Creating…" : "Create milestone"}
+          </button>
         </div>
       }
     >
-      <div className="form-grid">
-        <div className="form-row">
-          <label className="form-label">▸ Assign to provider</label>
+      <div className="stack gap-16">
+        {/* Provider selector */}
+        <div className="field">
+          <label className="field-label">Assign to provider</label>
           {allProviders.length === 0 ? (
-            <div className="access-empty">
+            <div className="muted" style={{ fontSize: 13 }}>
               No providers invited yet.{" "}
-              <Link to={`/projects/${projectId}/invites`} style={{ color: "var(--neon)" }}>
+              <span
+                className="link"
+                style={{ cursor: "pointer", color: "var(--brand-600)" }}
+                onClick={() => navigate(`/projects/${projectId}/invites`)}
+              >
                 Invite one first →
-              </Link>
+              </span>
             </div>
           ) : (
             <select
-              className="form-input"
+              className="input"
               value={providerId}
               onChange={(e) => setProviderId(e.target.value)}
-              style={{ colorScheme: "dark" }}
             >
               {allProviders.length > 1 && <option value="">— select provider —</option>}
               {providers.map((p) => (
@@ -517,64 +553,57 @@ function AddMilestoneModal({
             </select>
           )}
         </div>
-
-        <div className="form-row">
-          <label className="form-label">▸ Title</label>
+        <div className="field">
+          <label className="field-label">Title</label>
           <input
-            className="form-input"
+            className="input"
             placeholder="e.g. M-01 · Auth & user provisioning"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
           />
         </div>
-
-        <div className="form-row">
-          <label className="form-label">▸ Description</label>
+        <div className="field">
+          <label className="field-label">Description</label>
           <textarea
-            className="form-textarea"
+            className="textarea"
             placeholder="Acceptance criteria, scope, deliverables…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
-
-        <div className="form-row two">
-          <div className="form-row" style={{ gap: 8 }}>
-            <label className="form-label">▸ Start date</label>
+        <div className="row gap-16">
+          <div className="field" style={{ flex: 1 }}>
+            <label className="field-label">Start date</label>
             <input
               type="date"
-              className="form-input"
+              className="input"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              style={{ colorScheme: "dark" }}
             />
           </div>
-          <div className="form-row" style={{ gap: 8 }}>
-            <label className="form-label">▸ End date</label>
+          <div className="field" style={{ flex: 1 }}>
+            <label className="field-label">End date</label>
             <input
               type="date"
-              className="form-input"
+              className="input"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               min={startDate || undefined}
-              style={{ colorScheme: "dark" }}
             />
           </div>
         </div>
-
-        <div className="form-row">
-          <label className="form-label">▸ Amount (SOL)</label>
+        <div className="field">
+          <label className="field-label">Amount (SOL)</label>
           <input
-            className="form-input"
+            className="input"
             placeholder="e.g. 1.5"
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
         </div>
-
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div style={{ color: "var(--danger)", fontSize: 13 }}>{error}</div>}
       </div>
     </Modal>
   );
@@ -639,59 +668,56 @@ function ManageAccessModal({
     <Modal
       open={open}
       onClose={onClose}
-      tag="ACCESS"
       title="Manage providers"
       width={620}
       footer={
-        <div className="modal-foot">
-          <div>
+        <div className="row-between" style={{ width: "100%" }}>
+          <span className="muted-2" style={{ fontSize: 13 }}>
             {providers.length} active · {invites.length} pending
-          </div>
+          </span>
           <button className="btn" onClick={onClose}>
             Done
           </button>
         </div>
       }
     >
-      <div className="form-grid">
-        <div className="form-row">
-          <label className="form-label">▸ Invite provider by wallet address</label>
-          <div style={{ display: "flex", gap: 8 }}>
+      <div className="stack gap-16">
+        <div className="field">
+          <label className="field-label">Invite provider by wallet address</label>
+          <div className="row gap-8">
             <input
-              className="form-input"
+              className="input"
+              style={{ flex: 1 }}
               placeholder="Solana wallet address (base58)"
               value={addr}
               onChange={(e) => setAddr(e.target.value)}
-              style={{ flex: 1 }}
             />
             <button className="btn btn-primary" onClick={submit} disabled={inviting}>
               {inviting ? "Inviting…" : "Invite"}
             </button>
           </div>
-          {err && (
-            <div className="auth-error" style={{ marginTop: 6 }}>
-              {err}
-            </div>
-          )}
+          {err && <div style={{ color: "var(--danger)", fontSize: 13, marginTop: 6 }}>{err}</div>}
         </div>
-
-        <div className="form-row">
-          <label className="form-label">▸ Active providers</label>
+        <div className="field">
+          <label className="field-label">Active providers</label>
           {providers.length === 0 ? (
-            <div className="access-empty">No providers yet. Invite a developer above.</div>
+            <div className="muted-2" style={{ fontSize: 13 }}>
+              No providers yet.
+            </div>
           ) : (
-            <div className="access-list">
+            <div className="stack gap-8">
               {providers.map((p) => (
-                <div key={p.id} className="access-row">
-                  <div className="ar-avatar">{p.publicKey.charAt(0).toUpperCase()}</div>
-                  <div className="ar-body">
-                    <div className="ar-name">{shortenAddr(p.publicKey)}</div>
-                    <div className="ar-meta">{p.publicKey}</div>
+                <div key={p.id} className="invite-row">
+                  <div className="av av-sm">{p.publicKey.charAt(0).toUpperCase()}</div>
+                  <div className="meta">
+                    <div className="name">{shortenAddr(p.publicKey)}</div>
+                    <div className="sub mono">{p.publicKey}</div>
                   </div>
-                  <span className="ms-status approved">
-                    <span className="d" /> Active
+                  <span className="pill pill-ok">
+                    <span className="dot" />
+                    Active
                   </span>
-                  <button className="btn btn-danger small" onClick={() => onRemove(p.id)}>
+                  <button className="btn btn-sm btn-danger" onClick={() => onRemove(p.id)}>
                     Remove
                   </button>
                 </div>
@@ -699,31 +725,29 @@ function ManageAccessModal({
             </div>
           )}
         </div>
-
-        <div className="form-row">
-          <label className="form-label">▸ Pending invites</label>
-          {invites.length === 0 ? (
-            <div className="access-empty">No pending invites.</div>
-          ) : (
-            <div className="access-list">
+        {invites.length > 0 && (
+          <div className="field">
+            <label className="field-label">Pending invites</label>
+            <div className="stack gap-8">
               {invites.map((iv) => (
-                <div key={iv.id} className="access-row">
-                  <div className="ar-avatar dim">{iv.for.publicKey.charAt(0).toUpperCase()}</div>
-                  <div className="ar-body">
-                    <div className="ar-name">{shortenAddr(iv.for.publicKey)}</div>
-                    <div className="ar-meta">Invited {fmtDate(iv.createdAt)}</div>
+                <div key={iv.id} className="invite-row">
+                  <div className="av av-sm dim">{iv.for.publicKey.charAt(0).toUpperCase()}</div>
+                  <div className="meta">
+                    <div className="name">{shortenAddr(iv.for.publicKey)}</div>
+                    <div className="sub">Invited {fmtDate(iv.createdAt)}</div>
                   </div>
-                  <span className="ms-status pending">
-                    <span className="d" /> Pending
+                  <span className="pill pill-warn">
+                    <span className="dot dot-pulse" />
+                    Pending
                   </span>
-                  <button className="btn small" onClick={() => onCancelInvite(iv.id)}>
+                  <button className="btn btn-sm" onClick={() => onCancelInvite(iv.id)}>
                     Cancel
                   </button>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -738,6 +762,7 @@ function ProjectSetupView({
   token: string;
   onSetupComplete: () => void;
 }) {
+  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -839,52 +864,24 @@ function ProjectSetupView({
   }
 
   return (
-    <div className="git-escrow-root">
-      <div className="wrap">
-        <Navbar />
-
-        <div className="proj-header">
-          <div>
-            <div className="crumb">
-              <Link to="/dashboard">Dashboard</Link>
-              <span className="sep">/</span>
-              <span>Projects</span>
-              <span className="sep">/</span>
-              <span style={{ color: "var(--neon)" }}>{project.id}</span>
-            </div>
-            <div className="ph-id">▸ {project.id}</div>
-            <h1>{project.title}</h1>
-            <div className="ph-meta">
-              <span>
-                created <b>{fmtDate(project.createdAt)}</b>
-              </span>
-              <span>
-                status <b style={{ color: "var(--ink-dim)" }}>PENDING SETUP</b>
-              </span>
-            </div>
-          </div>
+    <AppShell>
+      <div className="page">
+        <div className="crumb">
+          <a onClick={() => navigate("/projects")}>Projects</a>
+          <span className="sep">/</span>
+          <span className="now">{project.title}</span>
         </div>
+        <PageHead
+          title={project.title}
+          subtitle="Upload your project specification to get started."
+        />
 
-        <div
-          className="section-bar"
-          style={{ marginTop: 28, borderBottom: "1px dashed var(--line)" }}
-        >
-          <div>
-            <h2 style={{ fontSize: 26 }}>Project Setup</h2>
-            <div className="sub">
-              Attach your project specification document. The AI will verify it contains all
-              required information — milestones, requirements, and deliverables — before you can
-              invite providers and create milestones.
-            </div>
-          </div>
-        </div>
-
-        {/* ── File selection (before analysis) ── */}
+        {/* File selection (before analysis) */}
         {!docId && (
           <div style={{ marginTop: 24 }}>
             {!file ? (
               <label
-                className="form-input"
+                className="input"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -932,7 +929,7 @@ function ProjectSetupView({
                 )}
 
                 <button
-                  className="btn-action"
+                  className="btn btn-primary"
                   style={{ marginTop: 16 }}
                   onClick={handleAnalyze}
                   disabled={analyzing}
@@ -944,7 +941,7 @@ function ProjectSetupView({
           </div>
         )}
 
-        {/* ── Chat section (after analysis) ── */}
+        {/* Chat section (after analysis) */}
         {docId && (
           <div style={{ marginTop: 24 }}>
             <div
@@ -1034,7 +1031,7 @@ function ProjectSetupView({
             {!approved && (
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <input
-                  className="form-input"
+                  className="input"
                   style={{ flex: 1 }}
                   placeholder="Ask the AI or clarify your specification…"
                   value={input}
@@ -1059,7 +1056,7 @@ function ProjectSetupView({
           </div>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -1084,6 +1081,7 @@ function MilestoneReviewSection({
   onBack: () => void;
   onComplete: () => void;
 }) {
+  const navigate = useNavigate();
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [invites, setInvites] = useState<InviteResponse[]>([]);
   const [milestones, setMilestones] = useState<EditableMilestone[]>(() =>
@@ -1144,62 +1142,38 @@ function MilestoneReviewSection({
   };
 
   return (
-    <div className="git-escrow-root">
-      <div className="wrap">
-        <Navbar />
-
-        <div className="proj-header">
-          <div>
-            <div className="crumb">
-              <Link to="/dashboard">Dashboard</Link>
-              <span className="sep">/</span>
-              <span>Projects</span>
-              <span className="sep">/</span>
-              <span style={{ color: "var(--neon)" }}>{project.id}</span>
-            </div>
-            <div className="ph-id">▸ {project.id}</div>
-            <h1>{project.title}</h1>
-            <div className="ph-meta">
-              <span>
-                status <b style={{ color: "var(--ink-dim)" }}>PENDING SETUP</b>
-              </span>
-            </div>
-          </div>
+    <AppShell>
+      <div className="page">
+        <div className="crumb">
+          <a onClick={() => navigate("/projects")}>Projects</a>
+          <span className="sep">/</span>
+          <span className="now">{project.title}</span>
         </div>
-
-        <div
-          className="section-bar"
-          style={{ marginTop: 28, borderBottom: "1px dashed var(--line)" }}
-        >
-          <div>
-            <h2 style={{ fontSize: 26 }}>Review Milestones</h2>
-            <div className="sub">
-              {milestones.length} milestone{milestones.length !== 1 ? "s" : ""} extracted from your
-              document. Fill in any missing fields, assign a provider, then create them all.
-            </div>
-          </div>
-          <button className="btn" onClick={onBack} disabled={submitting}>
-            ← Back
-          </button>
-        </div>
+        <PageHead
+          title={project.title}
+          subtitle={`${milestones.length} milestone${milestones.length !== 1 ? "s" : ""} extracted from your document. Fill in any missing fields, assign a provider, then create them all.`}
+        />
 
         {/* Provider assignment */}
         <div style={{ marginTop: 24 }}>
-          <div className="form-row">
-            <label className="form-label">▸ Assign provider (applies to all milestones)</label>
+          <div className="field">
+            <label className="field-label">Assign provider (applies to all milestones)</label>
             {allProviders.length === 0 ? (
-              <div className="access-empty">
+              <div className="muted" style={{ fontSize: 13 }}>
                 No providers invited yet.{" "}
-                <Link to={`/projects/${project.id}/invites`} style={{ color: "var(--neon)" }}>
+                <span
+                  className="link"
+                  style={{ cursor: "pointer", color: "var(--brand-600)" }}
+                  onClick={() => navigate(`/projects/${project.id}/invites`)}
+                >
                   Invite one first →
-                </Link>
+                </span>
               </div>
             ) : (
               <select
-                className="form-input"
+                className="input"
                 value={selectedProviderId}
                 onChange={(e) => setSelectedProviderId(e.target.value)}
-                style={{ colorScheme: "dark" }}
               >
                 <option value="">— select provider —</option>
                 {acceptedProviders.map((p) => (
@@ -1229,58 +1203,56 @@ function MilestoneReviewSection({
                   </span>
                 </div>
 
-                <div className="form-row">
-                  <label className="form-label">▸ Title</label>
+                <div className="field">
+                  <label className="field-label">Title</label>
                   <input
-                    className="form-input"
+                    className="input"
                     value={m.title}
                     onChange={(e) => updateMilestone(idx, { title: e.target.value })}
                   />
                 </div>
 
-                <div className="form-row">
-                  <label className="form-label">▸ Description</label>
+                <div className="field">
+                  <label className="field-label">Description</label>
                   <textarea
-                    className="form-textarea"
+                    className="textarea"
                     value={m.description}
                     onChange={(e) => updateMilestone(idx, { description: e.target.value })}
                     rows={3}
                   />
                 </div>
 
-                <div className="form-row two">
-                  <div className="form-row" style={{ gap: 8 }}>
-                    <label className="form-label">▸ Start date</label>
+                <div className="row gap-16">
+                  <div className="field" style={{ flex: 1 }}>
+                    <label className="field-label">Start date</label>
                     <input
                       type="date"
-                      className="form-input"
+                      className="input"
                       value={m.startDate}
                       onChange={(e) => updateMilestone(idx, { startDate: e.target.value })}
-                      style={{ colorScheme: "dark" }}
                     />
                   </div>
-                  <div className="form-row" style={{ gap: 8 }}>
-                    <label className="form-label">▸ End / deadline</label>
+                  <div className="field" style={{ flex: 1 }}>
+                    <label className="field-label">End / deadline</label>
                     <input
                       type="date"
-                      className="form-input"
+                      className="input"
                       value={m.endDate}
                       onChange={(e) => updateMilestone(idx, { endDate: e.target.value })}
                       min={m.startDate || undefined}
-                      style={{ colorScheme: "dark" }}
                     />
                   </div>
                 </div>
 
-                <div className="form-row">
-                  <label className="form-label">
-                    ▸ Amount (SOL)
+                <div className="field">
+                  <label className="field-label">
+                    Amount (SOL)
                     {!m.amount && (
                       <span style={{ color: "var(--amber)", marginLeft: 6 }}>· required</span>
                     )}
                   </label>
                   <input
-                    className="form-input"
+                    className="input"
                     placeholder="e.g. 1.5"
                     inputMode="decimal"
                     value={m.amount}
@@ -1317,6 +1289,6 @@ function MilestoneReviewSection({
           </button>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
