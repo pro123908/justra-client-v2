@@ -9,8 +9,6 @@ import {
   type StoredAnalysisResult,
 } from "@/lib/api";
 import { buildGithubAppInstallUrl } from "@/routes/github";
-import "@/components/git-escrow.css";
-
 /* ---------------- helpers ---------------- */
 const fmtBytes = (b: number) => {
   if (b < 1024) return `${b} B`;
@@ -636,7 +634,9 @@ export default function CodeReport({
                     background: dragOver ? "var(--panel)" : "transparent",
                     opacity: isDisabled ? 0.5 : 1,
                   }}
-                  onClick={() => { if (!isDisabled) fileInputRef.current?.click(); }}
+                  onClick={() => {
+                    if (!isDisabled) fileInputRef.current?.click();
+                  }}
                   onDragEnter={(e) => {
                     e.preventDefault();
                     if (!isDisabled) setDragOver(true);

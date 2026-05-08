@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import Navbar from "@/components/app/Navbar";
+import { useNavigate, useParams } from "react-router-dom";
+import { AppShell } from "@/components/app/AppShell";
+import { PageHead } from "@/components/app/PageHead";
 import { useAuth } from "@/lib/auth";
 import { inviteApi, projectApi, type InviteResponse, type ProjectResponse } from "@/lib/api";
-import "@/components/git-escrow.css";
 
 const shortenAddr = (addr: string) =>
   addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
@@ -75,126 +75,96 @@ export default function ProjectInvitesPage() {
 
   if (loading) {
     return (
-      <div className="git-escrow-root">
-        <div className="wrap">
-          <Navbar />
-          <div className="empty-state" style={{ marginTop: 60 }}>
-            <div className="ic">…</div>
-            <h3>Loading</h3>
+      <AppShell>
+        <div className="page">
+          <div className="muted" style={{ textAlign: "center", padding: "60px 0" }}>
+            Loading…
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   const pendingInvites = invites.filter((i) => i.status === "PENDING" || i.status === "pending");
 
   return (
-    <div className="git-escrow-root">
-      <div className="wrap">
-        <Navbar />
-
-        <div className="proj-header">
-          <div>
-            <div className="crumb">
-              <Link to="/dashboard">Dashboard</Link>
-              <span className="sep">/</span>
-              <Link to={`/projects/${projectId}`}>{project?.title ?? projectId}</Link>
-              <span className="sep">/</span>
-              <span style={{ color: "var(--neon)" }}>Invite providers</span>
-            </div>
-            <div className="ph-id">▸ {projectId}</div>
-            <h1>Invite providers</h1>
-            <div className="ph-meta">
-              <span>
-                <b>{pendingInvites.length}</b> pending invite
-                {pendingInvites.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-          </div>
-          <button className="btn-action" onClick={() => navigate(`/projects/${projectId}`)}>
-            Continue to project →
-          </button>
+    <AppShell>
+      <div className="page">
+        <div className="crumb">
+          <a onClick={() => navigate(`/projects/${projectId}`)} style={{ cursor: "pointer" }}>
+            {project?.title ?? projectId}
+          </a>
+          <span className="sep">/</span>
+          <span className="now">Invites</span>
         </div>
+        <PageHead
+          title="Manage access"
+          subtitle="Invite a developer to this project by their Solana address."
+        />
 
-        <div style={{ maxWidth: 600, marginTop: 32 }}>
-          {/* Invite input */}
-          <div className="form-row" style={{ marginBottom: 32 }}>
-            <label className="form-label">▸ Invite provider by wallet address</label>
-            <div style={{ display: "flex", gap: 8 }}>
+        <div className="card" style={{ maxWidth: 560, marginBottom: 24 }}>
+          <div className="card-head">
+            <div className="card-title">Send invite</div>
+          </div>
+          <div className="card-pad">
+            <div className="field">
+              <label className="field-label">Provider wallet address</label>
               <input
-                className="form-input"
-                placeholder="Solana wallet address (base58)"
+                className="input"
+                placeholder="Solana public key…"
                 value={addr}
                 onChange={(e) => setAddr(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-                style={{ flex: 1 }}
                 autoFocus
               />
-              <button className="btn btn-primary" onClick={handleInvite} disabled={inviting}>
-                {inviting ? "Inviting…" : "Invite"}
-              </button>
-            </div>
-            {inviteErr && (
-              <div className="auth-error" style={{ marginTop: 6 }}>
-                {inviteErr}
-              </div>
-            )}
-            <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-mute)" }}>
-              The provider must have a registered account to receive an invite.
-            </div>
-          </div>
-
-          {/* Pending invites list */}
-          <div>
-            <div className="section-h" style={{ marginBottom: 14 }}>
-              <span>▸ PENDING INVITES</span>
-              <span style={{ color: "var(--ink-mute)", fontSize: 11 }}>
-                {pendingInvites.length} sent
+              {inviteErr && (
+                <span className="field-hint" style={{ color: "var(--danger-ink)" }}>
+                  {inviteErr}
+                </span>
+              )}
+              <span className="field-hint">
+                The developer must connect this wallet to accept your invite.
               </span>
             </div>
-
-            {pendingInvites.length === 0 ? (
-              <div className="access-empty">
-                No invites sent yet. Add a provider above to get started.
-              </div>
-            ) : (
-              <div className="access-list">
-                {pendingInvites.map((inv) => (
-                  <div key={inv.id} className="access-row">
-                    <div className="ar-avatar">{inv.for.publicKey.charAt(0).toUpperCase()}</div>
-                    <div className="ar-body">
-                      <div className="ar-name">{shortenAddr(inv.for.publicKey)}</div>
-                      <div className="ar-meta">{inv.for.publicKey}</div>
-                    </div>
-                    <span className="ms-status pending">
-                      <span className="d" /> Pending
-                    </span>
-                    <button className="btn btn-danger small" onClick={() => handleCancel(inv.id)}>
-                      Cancel
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Continue CTA */}
-          <div
-            style={{
-              marginTop: 40,
-              paddingTop: 24,
-              borderTop: "1px dashed var(--line)",
-              display: "flex",
-              justifyContent: "flex-end",
-            }}
-          >
-            <button className="btn btn-primary" onClick={() => navigate(`/projects/${projectId}`)}>
-              Continue to project →
+            <button
+              className="btn btn-primary"
+              style={{ marginTop: 14 }}
+              onClick={handleInvite}
+              disabled={inviting}
+            >
+              {inviting ? "Sending…" : "Send invite"}
             </button>
           </div>
         </div>
+
+        {pendingInvites.length > 0 && (
+          <div>
+            <h2 className="h-display h3" style={{ marginBottom: 14 }}>
+              Pending invites
+            </h2>
+            <div className="invite-list">
+              {pendingInvites.map((inv) => (
+                <div key={inv.id} className="invite-row">
+                  <div className="av av-lg">{inv.for.publicKey.charAt(0).toUpperCase()}</div>
+                  <div className="meta">
+                    <div className="name">{shortenAddr(inv.for.publicKey)}</div>
+                    <div className="sub">{inv.for.publicKey}</div>
+                  </div>
+                  <button className="btn btn-sm btn-danger" onClick={() => handleCancel(inv.id)}>
+                    Cancel
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: 32 }}>
+          <button className="btn btn-primary" onClick={() => navigate(`/projects/${projectId}`)}>
+            Continue to project
+          </button>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

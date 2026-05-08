@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { githubApi } from "@/lib/api";
-import "@/components/git-escrow.css";
+import { Ico } from "@/components/app/Icons";
 
 export default function GithubCallbackPage() {
   const { user, token, isInitializing, connectGithub } = useAuth();
@@ -52,8 +52,6 @@ export default function GithubCallbackPage() {
       // ignore malformed state
     }
 
-    // GitHub App sends both code + installation_id when user authorization is enabled.
-    // Link the account first, then store the installation.
     const linkAccount = code ? connectGithub(code) : Promise.resolve();
 
     linkAccount
@@ -68,39 +66,31 @@ export default function GithubCallbackPage() {
       });
   }, [isInitializing, user, token, connectGithub, navigate]);
 
-  if (error) {
-    return (
-      <div className="git-escrow-root">
-        <div className="auth-shell">
-          <div className="auth-card">
-            <div className="auth-eyebrow">GitHub · App</div>
-            <h2>Connection failed.</h2>
-            <p className="auth-sub">{error}</p>
-            <button
-              className="btn btn-primary"
-              onClick={() => navigate("/github")}
-              style={{ marginTop: 16 }}
-            >
-              Try again →
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="git-escrow-root">
-      <div className="auth-shell">
-        <div className="auth-card">
-          <div className="auth-eyebrow">GitHub · App</div>
-          <h2>Connecting…</h2>
-          <p className="auth-sub">Linking your GitHub account. Please wait.</p>
-          <div className="github-connecting-dots">
-            <span />
-            <span />
-            <span />
-          </div>
+    <div className="public-shell">
+      <div className="center-shell">
+        <div className="auth-card" style={{ textAlign: "center" }}>
+          {error ? (
+            <>
+              <span
+                className="auth-step"
+                style={{ background: "var(--danger-bg)", color: "var(--danger-ink)" }}
+              >
+                Error
+              </span>
+              <h2>Connection failed</h2>
+              <p className="sub">{error}</p>
+              <button className="btn" onClick={() => navigate("/github")}>
+                Try again
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="auth-step">Connecting…</span>
+              <h2>Linking your GitHub account</h2>
+              <p className="sub">Just a moment while we finalize the connection.</p>
+            </>
+          )}
         </div>
       </div>
     </div>

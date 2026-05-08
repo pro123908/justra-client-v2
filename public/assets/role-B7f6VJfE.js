@@ -1,1 +1,123 @@
-import{u,a as h,r as m,j as e}from"./index-Cmg3No5R.js";import{N as p}from"./Navbar-CDX-VLnU.js";function v(){const{user:s,setRole:l}=u(),r=h();if(m.useEffect(()=>{s||r({to:"/auth"})},[s,r]),!s)return null;const a=async o=>{await l(o),r({to:o==="provider"?"/github":"/dashboard"})};return e.jsxs("div",{className:"git-escrow-root",children:[e.jsx("div",{className:"wrap",style:{paddingBottom:24},children:e.jsx(p,{})}),e.jsxs("div",{className:"role-shell",children:[e.jsxs("div",{className:"role-head",children:[e.jsx("div",{className:"auth-eyebrow",children:"Authenticate · Step 2 of 2"}),e.jsx("h2",{children:"Select your role."}),e.jsxs("p",{className:"role-sub",children:["Wallet connected as ",e.jsx("span",{className:"role-wallet",children:s.short}),". Choose how you'll participate in this escrow workspace. You can switch workspaces at any time."]})]}),e.jsxs("div",{className:"role-grid",children:[e.jsx(n,{tag:"ROLE · 01",title:"Provider",sub:"Developer / Contributor",description:"Submit code, deliver milestones, and receive payments held in escrow as each milestone is approved by the consumer.",bullets:["Push milestone-wise development code","Trigger on-chain release upon approval","Build verifiable delivery history"],cta:"Continue as Provider",onClick:()=>a("provider"),required:"Requires GitHub account"}),e.jsx(n,{tag:"ROLE · 02",title:"Consumer",sub:"Product Owner / Payer",description:"Own the project, fund escrow milestones, and approve developer submissions. Funds release only when you sign off.",bullets:["Define scope and milestone amounts","Lock funds in escrow per milestone","Approve or dispute deliverables"],cta:"Continue as Consumer",onClick:()=>a("consumer")})]})]})]})}function n({tag:s,title:l,sub:r,description:a,bullets:o,cta:t,onClick:d,required:i}){return e.jsxs("button",{className:"role-card",onClick:d,type:"button",children:[e.jsx("div",{className:"role-card-tag",children:s}),e.jsxs("div",{className:"role-card-title",children:[e.jsx("h3",{children:l}),e.jsx("span",{children:r})]}),e.jsx("p",{className:"role-card-desc",children:a}),e.jsx("ul",{className:"role-card-list",children:o.map(c=>e.jsxs("li",{children:[e.jsx("span",{className:"rcl-mark",children:"▸"}),c]},c))}),i&&e.jsxs("div",{className:"role-card-required",children:[e.jsx("span",{className:"rcl-mark",children:"⬡"})," ",i]}),e.jsxs("div",{className:"role-card-cta",children:[e.jsx("span",{children:t}),e.jsx("span",{className:"arrow",children:"→"})]})]})}export{v as component};
+import { u, a as h, r as m, j as e } from "./index-Cmg3No5R.js";
+import { N as p } from "./Navbar-CDX-VLnU.js";
+function v() {
+  const { user: s, setRole: l } = u(),
+    r = h();
+  if (
+    (m.useEffect(() => {
+      s || r({ to: "/auth" });
+    }, [s, r]),
+    !s)
+  )
+    return null;
+  const a = async (o) => {
+    (await l(o), r({ to: o === "provider" ? "/github" : "/dashboard" }));
+  };
+  return e.jsxs("div", {
+    className: "git-escrow-root",
+    children: [
+      e.jsx("div", { className: "wrap", style: { paddingBottom: 24 }, children: e.jsx(p, {}) }),
+      e.jsxs("div", {
+        className: "role-shell",
+        children: [
+          e.jsxs("div", {
+            className: "role-head",
+            children: [
+              e.jsx("div", { className: "auth-eyebrow", children: "Authenticate · Step 2 of 2" }),
+              e.jsx("h2", { children: "Select your role." }),
+              e.jsxs("p", {
+                className: "role-sub",
+                children: [
+                  "Wallet connected as ",
+                  e.jsx("span", { className: "role-wallet", children: s.short }),
+                  ". Choose how you'll participate in this escrow workspace. You can switch workspaces at any time.",
+                ],
+              }),
+            ],
+          }),
+          e.jsxs("div", {
+            className: "role-grid",
+            children: [
+              e.jsx(n, {
+                tag: "ROLE · 01",
+                title: "Provider",
+                sub: "Developer / Contributor",
+                description:
+                  "Submit code, deliver milestones, and receive payments held in escrow as each milestone is approved by the consumer.",
+                bullets: [
+                  "Push milestone-wise development code",
+                  "Trigger on-chain release upon approval",
+                  "Build verifiable delivery history",
+                ],
+                cta: "Continue as Provider",
+                onClick: () => a("provider"),
+                required: "Requires GitHub account",
+              }),
+              e.jsx(n, {
+                tag: "ROLE · 02",
+                title: "Consumer",
+                sub: "Product Owner / Payer",
+                description:
+                  "Own the project, fund escrow milestones, and approve developer submissions. Funds release only when you sign off.",
+                bullets: [
+                  "Define scope and milestone amounts",
+                  "Lock funds in escrow per milestone",
+                  "Approve or dispute deliverables",
+                ],
+                cta: "Continue as Consumer",
+                onClick: () => a("consumer"),
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+function n({
+  tag: s,
+  title: l,
+  sub: r,
+  description: a,
+  bullets: o,
+  cta: t,
+  onClick: d,
+  required: i,
+}) {
+  return e.jsxs("button", {
+    className: "role-card",
+    onClick: d,
+    type: "button",
+    children: [
+      e.jsx("div", { className: "role-card-tag", children: s }),
+      e.jsxs("div", {
+        className: "role-card-title",
+        children: [e.jsx("h3", { children: l }), e.jsx("span", { children: r })],
+      }),
+      e.jsx("p", { className: "role-card-desc", children: a }),
+      e.jsx("ul", {
+        className: "role-card-list",
+        children: o.map((c) =>
+          e.jsxs(
+            "li",
+            { children: [e.jsx("span", { className: "rcl-mark", children: "▸" }), c] },
+            c,
+          ),
+        ),
+      }),
+      i &&
+        e.jsxs("div", {
+          className: "role-card-required",
+          children: [e.jsx("span", { className: "rcl-mark", children: "⬡" }), " ", i],
+        }),
+      e.jsxs("div", {
+        className: "role-card-cta",
+        children: [
+          e.jsx("span", { children: t }),
+          e.jsx("span", { className: "arrow", children: "→" }),
+        ],
+      }),
+    ],
+  });
+}
+export { v as component };

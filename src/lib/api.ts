@@ -106,9 +106,9 @@ export const githubApi = {
 };
 
 export enum ProjectCreationStatus {
-  PENDING = 'PENDING',
-  CREATION_SUCCESSFUL = 'CREATION_SUCCESSFUL',
-  CREATION_FAILED = 'CREATION_FAILED',
+  PENDING = "PENDING",
+  CREATION_SUCCESSFUL = "CREATION_SUCCESSFUL",
+  CREATION_FAILED = "CREATION_FAILED",
 }
 
 export type ProjectResponse = {

@@ -118,15 +118,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const projectsForProvider: DataCtx["projectsForProvider"] = (_address) => memberProjects;
 
   const invitesForProvider: DataCtx["invitesForProvider"] = (_address) =>
-    myInvites.filter((inv) => inv.status === "pending").map((inv) => ({
-      project: mapProject(inv.project),
-      invite: {
-        id: inv.id,
-        address: inv.for.publicKey,
-        short: shortenAddr(inv.for.publicKey),
-        invitedAt: inv.createdAt,
-      },
-    }));
+    myInvites
+      .filter((inv) => inv.status === "pending")
+      .map((inv) => ({
+        project: mapProject(inv.project),
+        invite: {
+          id: inv.id,
+          address: inv.for.publicKey,
+          short: shortenAddr(inv.for.publicKey),
+          invitedAt: inv.createdAt,
+        },
+      }));
 
   return (
     <Ctx.Provider

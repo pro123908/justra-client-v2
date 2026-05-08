@@ -199,7 +199,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ user, token, isInitializing, connectPhantom, setRole, connectGithub, disconnectGithub, logout }}>
+    <Ctx.Provider
+      value={{
+        user,
+        token,
+        isInitializing,
+        connectPhantom,
+        setRole,
+        connectGithub,
+        disconnectGithub,
+        logout,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
