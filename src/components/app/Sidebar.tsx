@@ -98,7 +98,11 @@ function CopyButton({ value }: { value: string }) {
         lineHeight: 1,
       }}
     >
-      {copied ? <Ico.check style={{ width: 11, height: 11 }} /> : <Ico.copy style={{ width: 11, height: 11 }} />}
+      {copied ? (
+        <Ico.check style={{ width: 11, height: 11 }} />
+      ) : (
+        <Ico.copy style={{ width: 11, height: 11 }} />
+      )}
     </button>
   );
 }
