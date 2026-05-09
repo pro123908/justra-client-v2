@@ -110,8 +110,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           githubAvatarUrl: serverUser.githubAvatarUrl ?? null,
         });
       })
-      .catch(() => {
-        localStorage.removeItem(JWT_KEY);
+      .catch((err: unknown) => {
+        const status = (err as { status?: number })?.status;
+        if (status === 401 || status === 403) {
+          localStorage.removeItem(JWT_KEY);
+        }
       })
       .finally(() => {
         setIsInitializing(false);

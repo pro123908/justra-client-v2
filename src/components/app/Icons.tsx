@@ -160,6 +160,22 @@ export const Ico = {
       <path d="M20 6 9 17l-5-5" />
     </svg>
   ),
+  copy: (p: IcoProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width="14"
+      height="14"
+      {...p}
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  ),
   x: (p: IcoProps) => (
     <svg
       viewBox="0 0 24 24"
@@ -304,6 +320,22 @@ export const Ico = {
     >
       <path d="m22 7-9.5 9.5-5-5L2 17" />
       <path d="M16 7h6v6" />
+    </svg>
+  ),
+  calendar: (p: IcoProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      width="14"
+      height="14"
+      {...p}
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
     </svg>
   ),
 };

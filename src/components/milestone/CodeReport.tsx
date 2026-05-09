@@ -478,35 +478,10 @@ export default function CodeReport({
     }, 500);
 
     try {
-      let response: Response;
-
-      if (sourceMode === "github" && githubRepo) {
-        response = await fetch("http://localhost:3000/analyze", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ milestoneId, githubRepo }),
-        });
-      } else {
-        const form = new FormData();
-        form.append("milestoneId", milestoneId);
-        form.append("codebase", codebase!);
-        response = await fetch("http://localhost:3000/analyze", {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: form,
-        });
-      }
-
-      if (!response.ok) {
-        clearInterval(ticker);
-        const body = await response.json().catch(() => ({ error: "Request failed" }));
-        throw new Error(body.error || `Server error ${response.status}`);
-      }
-
-      const result: AnalysisResult = await response.json();
+      const result: AnalysisResult =
+        sourceMode === "github" && githubRepo
+          ? await analysisApi.runWithGithub(token!, milestoneId, githubRepo)
+          : await analysisApi.runWithZip(token!, milestoneId, codebase!);
       clearInterval(ticker);
       setLoadPct(100);
       await new Promise((resolve) => setTimeout(resolve, 600));
@@ -1129,7 +1104,16 @@ export default function CodeReport({
                 <span className="chk">{hasAnalyses ? "✓" : ""}</span> STORED ANALYSIS
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                alignItems: "center",
+                marginTop: 12,
+                marginBottom: 12,
+              }}
+            >
               <button
                 className="btn-generate"
                 disabled={!githubRepo || isDisabled}

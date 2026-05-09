@@ -11,16 +11,17 @@ export function buildGithubAppInstallUrl(state?: string) {
 }
 
 export default function GithubConnectPage() {
-  const { user } = useAuth();
+  const { user, isInitializing } = useAuth();
   const navigate = useNavigate();
 
   const isProvider = user?.role === "provider";
 
   useEffect(() => {
+    if (isInitializing) return;
     if (!user) navigate("/auth");
     else if (!user.role) navigate("/role");
     else if (user.githubUsername) navigate("/dashboard");
-  }, [user, navigate]);
+  }, [isInitializing, user, navigate]);
 
   if (!user || !user.role || user.githubUsername) return null;
 

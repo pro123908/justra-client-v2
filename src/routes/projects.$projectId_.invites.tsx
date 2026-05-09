@@ -9,7 +9,7 @@ const shortenAddr = (addr: string) =>
   addr.length <= 10 ? addr : `${addr.slice(0, 4)}…${addr.slice(-4)}`;
 
 export default function ProjectInvitesPage() {
-  const { user, token } = useAuth();
+  const { user, token, isInitializing } = useAuth();
   const navigate = useNavigate();
   const { projectId = "" } = useParams();
 
@@ -22,10 +22,11 @@ export default function ProjectInvitesPage() {
   const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
+    if (isInitializing) return;
     if (!user) navigate("/auth");
     else if (!user.role) navigate("/role");
     else if (user.role !== "consumer") navigate(`/projects/${projectId}`);
-  }, [user, navigate, projectId]);
+  }, [isInitializing, user, navigate, projectId]);
 
   useEffect(() => {
     if (!token) return;

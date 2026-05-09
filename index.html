@@ -12,6 +12,13 @@
     />
   </head>
   <body>
+    <script>
+      try {
+        var p = JSON.parse(localStorage.getItem("justra_prefs") || "{}");
+        if (p.theme) document.documentElement.setAttribute("data-theme", p.theme);
+        if (p.density) document.documentElement.setAttribute("data-density", p.density);
+      } catch (e) {}
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

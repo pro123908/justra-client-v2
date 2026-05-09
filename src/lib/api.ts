@@ -10,7 +10,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || `Request failed: ${res.status}`);
+    const err = Object.assign(new Error(text || `Request failed: ${res.status}`), {
+      status: res.status,
+    });
+    throw err;
   }
   return res.json() as Promise<T>;
 }
@@ -200,7 +203,8 @@ export interface ChatMessage {
 export interface ExtractedMilestone {
   title: string;
   description: string;
-  deadline: string | null;
+  startDate: string | null;
+  endDate: string | null;
   amount: string | null;
 }
 
@@ -460,4 +464,22 @@ export const analysisApi = {
     apiFetch<StoredAnalysisResult[]>(`/analyze/milestone/${milestoneId}`, {
       headers: { Authorization: `Bearer ${token}` },
     }),
+
+  runWithGithub: (token: string, milestoneId: string, githubRepo: string) =>
+    apiFetch<AnalysisResult>("/analyze", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ milestoneId, githubRepo }),
+    }),
+
+  runWithZip: (token: string, milestoneId: string, codebase: File) => {
+    const form = new FormData();
+    form.append("milestoneId", milestoneId);
+    form.append("codebase", codebase);
+    return apiFetch<AnalysisResult>("/analyze", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+    });
+  },
 };

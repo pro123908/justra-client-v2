@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { Ico } from "./Icons";
 
 interface SidebarProps {
   active: string;
   onNav: (id: string) => void;
   role: "consumer" | "provider";
-  user: { name: string; short: string; initial: string };
+  user: { name: string; short: string; initial: string; address?: string };
   badges?: { invites?: number };
 }
 
@@ -61,9 +62,43 @@ export function Sidebar({ active, onNav, role, user, badges = {} }: SidebarProps
         <div className="sb-avatar">{user.initial}</div>
         <div className="sb-user-meta">
           <div className="sb-user-name">{user.name}</div>
-          <div className="sb-user-sub">{user.short}</div>
+          <div className="sb-user-sub" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span>{user.short}</span>
+            {user.address && <CopyButton value={user.address} />}
+          </div>
         </div>
       </div>
     </aside>
+  );
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      title={copied ? "Copied!" : "Copy address"}
+      style={{
+        background: "none",
+        border: "none",
+        padding: "0 2px",
+        cursor: "pointer",
+        color: copied ? "var(--neon, #39ff14)" : "var(--ink-4, #888)",
+        display: "flex",
+        alignItems: "center",
+        lineHeight: 1,
+      }}
+    >
+      {copied ? <Ico.check style={{ width: 11, height: 11 }} /> : <Ico.copy style={{ width: 11, height: 11 }} />}
+    </button>
   );
 }

@@ -97,7 +97,7 @@ function statusLabel(s: MilestoneStatus) {
 }
 
 export default function MilestoneDetailPage() {
-  const { user, token } = useAuth();
+  const { user, token, isInitializing } = useAuth();
   const navigate = useNavigate();
   const { projectId = "", milestoneId = "" } = useParams();
 
@@ -126,9 +126,10 @@ export default function MilestoneDetailPage() {
   const [fiatCard, setFiatCard] = useState({ name: "", number: "", exp: "", cvc: "" });
 
   useEffect(() => {
+    if (isInitializing) return;
     if (!user) navigate("/auth");
     else if (!user.role) navigate("/role");
-  }, [user, navigate]);
+  }, [isInitializing, user, navigate]);
 
   useEffect(() => {
     if (!token) return;
@@ -373,11 +374,11 @@ export default function MilestoneDetailPage() {
             <button className="btn" onClick={() => navigate(`/projects/${projectId}`)}>
               ← Back
             </button>
-            {canAssignProvider && (
+            {/* {canAssignProvider && (
               <button className="btn" onClick={() => setAssignOpen(true)}>
                 <Ico.user /> {milestone.provider ? "Reassign provider" : "Assign provider"}
               </button>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -551,52 +552,83 @@ export default function MilestoneDetailPage() {
             </div>
 
             {/* Dates card */}
-            <div className="card card-pad">
-              <h3 className="h-display" style={{ fontSize: 15, margin: "0 0 14px" }}>
-                Timeline
-              </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <div
-                    className="muted-2"
-                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
-                  >
-                    Start
+            <div className="card">
+              <div className="card-head">
+                <span className="card-title" style={{ fontSize: 15 }}>
+                  Timeline
+                </span>
+              </div>
+              <div style={{ padding: "20px 24px" }}>
+                <div className="kv-grid">
+                  <div className="kv">
+                    <div className="kv-label">Created</div>
+                    <div className="kv-val">{fmtDate(milestone.createdAt)}</div>
                   </div>
-                  <div style={{ marginTop: 4, fontWeight: 600 }}>
-                    {fmtDate(milestone.startDate)}
+                  <div className="kv">
+                    <div className="kv-label">Deposit Deadline</div>
+                    <div className="kv-val">{fmtDateTime(milestone.depositDeadline)}</div>
                   </div>
-                </div>
-                <div>
-                  <div
-                    className="muted-2"
-                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
-                  >
-                    End
+                  <div className="kv">
+                    <div className="kv-label">Start Date</div>
+                    <div className="kv-val">{fmtDate(milestone.startDate)}</div>
                   </div>
-                  <div style={{ marginTop: 4, fontWeight: 600 }}>{fmtDate(milestone.endDate)}</div>
-                </div>
-                <div>
-                  <div
-                    className="muted-2"
-                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
-                  >
-                    Created
-                  </div>
-                  <div style={{ marginTop: 4, fontWeight: 600 }}>
-                    {fmtDate(milestone.createdAt)}
+                  <div className="kv">
+                    <div className="kv-label">End Date</div>
+                    <div className="kv-val">{fmtDate(milestone.endDate)}</div>
                   </div>
                 </div>
-                <div>
-                  <div
-                    className="muted-2"
-                    style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em" }}
-                  >
-                    Deposit deadline
-                  </div>
-                  <div style={{ marginTop: 4, fontWeight: 600 }}>
-                    {fmtDateTime(milestone.depositDeadline)}
-                  </div>
+
+                <div className="timeline" style={{ marginTop: 24 }}>
+                  <TimelineEvent
+                    dot="ok"
+                    who="Milestone created"
+                    what="Consumer submitted milestone spec for provider review"
+                    when={fmtDateTime(milestone.createdAt)}
+                  />
+                  {milestone.status !== MilestoneStatus.PENDING_PROVIDER_APPROVAL &&
+                    milestone.status !== MilestoneStatus.REJECTED && (
+                      <TimelineEvent
+                        dot="ok"
+                        who="Provider accepted"
+                        what="Provider reviewed and accepted the milestone scope"
+                        when={milestone.startDate ? fmtDate(milestone.startDate) : "—"}
+                      />
+                    )}
+                  {milestone.status === MilestoneStatus.REJECTED && (
+                    <TimelineEvent
+                      dot="warn"
+                      who="Provider rejected"
+                      what={milestone.rejectionReason ?? "Scope was rejected by provider"}
+                      when="—"
+                    />
+                  )}
+                  {(milestone.status === MilestoneStatus.ACTIVE ||
+                    milestone.status === MilestoneStatus.IN_PROGRESS ||
+                    milestone.status === MilestoneStatus.COMPLETED ||
+                    milestone.status === MilestoneStatus.DISPUTED) && (
+                    <TimelineEvent
+                      dot="ok"
+                      who="Escrow funded"
+                      what={`◎ ${formatSol(milestone.amount)} SOL locked in escrow PDA`}
+                      when={milestone.fundedAt ? fmtDateTime(milestone.fundedAt) : "—"}
+                    />
+                  )}
+                  {milestone.status === MilestoneStatus.COMPLETED && (
+                    <TimelineEvent
+                      dot="ok"
+                      who="Milestone completed"
+                      what="Funds released to provider"
+                      when="—"
+                    />
+                  )}
+                  {milestone.status === MilestoneStatus.DISPUTED && (
+                    <TimelineEvent
+                      dot="warn"
+                      who="Disputed · escrow frozen"
+                      what="Milestone is under dispute. Funds are frozen pending arbitration."
+                      when="—"
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -671,22 +703,42 @@ export default function MilestoneDetailPage() {
 
             {/* CodeReport sections */}
             {showCodeReport && isProvider && (
-              <div>
-                <h3 className="h-display" style={{ fontSize: 15, marginBottom: 14 }}>
-                  Code submission
-                </h3>
-                <CodeReport
-                  milestoneId={milestoneId}
-                  githubRepo={milestone.githubRepo}
-                  token={token}
-                  onReleaseFunds={async () => {}}
-                  onRepoSubmit={async (repoUrl) => {
-                    const updated = await milestoneApi.submitRepo(token!, milestoneId, repoUrl);
-                    setMilestone(updated);
-                  }}
-                  role="provider"
-                  isDisabled={isDisputed}
-                />
+              <div className="card">
+                <div className="card-head">
+                  <span className="card-title" style={{ fontSize: 15 }}>
+                    Code Submission
+                  </span>
+                  {isDisputed && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontFamily: "var(--display)",
+                        fontWeight: 700,
+                        letterSpacing: "0.06em",
+                        color: "var(--red, #ef4444)",
+                        border: "1px solid var(--red, #ef4444)",
+                        borderRadius: 4,
+                        padding: "2px 8px",
+                      }}
+                    >
+                      FROZEN
+                    </span>
+                  )}
+                </div>
+                <div style={{ padding: "20px 24px" }}>
+                  <CodeReport
+                    milestoneId={milestoneId}
+                    githubRepo={milestone.githubRepo}
+                    token={token}
+                    onReleaseFunds={async () => {}}
+                    onRepoSubmit={async (repoUrl) => {
+                      const updated = await milestoneApi.submitRepo(token!, milestoneId, repoUrl);
+                      setMilestone(updated);
+                    }}
+                    role="provider"
+                    isDisabled={isDisputed}
+                  />
+                </div>
               </div>
             )}
             {showCodeReport && isConsumer && !showAnalyze && (
@@ -713,11 +765,11 @@ export default function MilestoneDetailPage() {
               </div>
             )}
             {showCodeReport && isConsumer && showAnalyze && (
-              <div>
-                <div className="row gap-8" style={{ marginBottom: 14 }}>
-                  <h3 className="h-display" style={{ fontSize: 15, margin: 0 }}>
-                    Delivery · analysis history
-                  </h3>
+              <div className="card">
+                <div className="card-head">
+                  <span className="card-title" style={{ fontSize: 15 }}>
+                    Delivery · Analysis History
+                  </span>
                   <button
                     className="btn"
                     style={{ fontSize: 11 }}
@@ -726,15 +778,17 @@ export default function MilestoneDetailPage() {
                     ← Back
                   </button>
                 </div>
-                <CodeReport
-                  milestoneId={milestoneId}
-                  githubRepo={milestone.githubRepo}
-                  token={token}
-                  onReleaseFunds={handleReleaseFunds}
-                  onDispute={isDisputed ? undefined : handleDispute}
-                  role="consumer"
-                  isDisabled={isDisputed}
-                />
+                <div style={{ padding: "20px 24px" }}>
+                  <CodeReport
+                    milestoneId={milestoneId}
+                    githubRepo={milestone.githubRepo}
+                    token={token}
+                    onReleaseFunds={handleReleaseFunds}
+                    onDispute={isDisputed ? undefined : handleDispute}
+                    role="consumer"
+                    isDisabled={isDisputed}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -749,7 +803,9 @@ export default function MilestoneDetailPage() {
                 <div className="row gap-12">
                   <div className="av av-lg">{user.initial}</div>
                   <div>
-                    <div style={{ fontWeight: 600 }}>You (client)</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {user.role === "consumer" ? "You (client)" : "You (provider)"}
+                    </div>
                     <div className="muted-2" style={{ fontSize: 12 }}>
                       {user.short}
                     </div>
@@ -759,7 +815,9 @@ export default function MilestoneDetailPage() {
                   <div className="row gap-12">
                     <div className="av av-lg">{milestone.provider.publicKey[0].toUpperCase()}</div>
                     <div>
-                      <div style={{ fontWeight: 600 }}>Developer</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {user.role === "consumer" ? "provider" : "client"}
+                      </div>
                       <div className="muted-2 mono" style={{ fontSize: 12 }}>
                         {shortenAddr(milestone.provider.publicKey)}
                       </div>
@@ -1331,6 +1389,34 @@ function ActiveMilestoneBand({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TimelineEvent({
+  dot,
+  who,
+  what,
+  when,
+  last = false,
+}: {
+  dot: "ok" | "warn" | null;
+  who: string;
+  what: string;
+  when: string;
+  last?: boolean;
+}) {
+  return (
+    <div className={"timeline-row" + (last ? " last" : "")}>
+      <div className={"timeline-dot" + (dot ? ` ${dot}` : "")}>
+        {dot === "ok" && <span style={{ fontSize: 10 }}>✓</span>}
+        {dot === "warn" && <span style={{ fontSize: 10 }}>!</span>}
+      </div>
+      <div className="body">
+        <div className="who">{who}</div>
+        <div className="what">{what}</div>
+        <div className="when">{when}</div>
+      </div>
     </div>
   );
 }

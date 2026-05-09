@@ -5,10 +5,11 @@ import { useAppData, type Project } from "@/lib/app-data";
 import { AppShell } from "@/components/app/AppShell";
 import { PageHead } from "@/components/app/PageHead";
 import { Ico } from "@/components/app/Icons";
-import Modal from "@/components/app/Modal";
+import { CreateProjectModal } from "@/components/app/CreateProjectModal";
+import { projectApi, milestoneApi } from "@/lib/api";
 
 export default function ProjectsPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { projectsOwnedBy, projectsForProvider, createProject } = useAppData();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"all" | "recent">("all");
@@ -104,146 +105,25 @@ export default function ProjectsPage() {
         <CreateProjectModal
           open={showCreate}
           onClose={() => setShowCreate(false)}
-          onCreate={async (name, description) => {
-            const p = await createProject({ name, description });
+          onCreate={async (name, description, docId, milestones) => {
+            const p = await createProject({ name, description, docId });
+            if (milestones && milestones.length > 0 && token) {
+              for (const m of milestones) {
+                await milestoneApi.create(token, p.id, {
+                  title: m.title,
+                  description: m.description,
+                  amount: m.amount ?? "",
+                  startDate: m.startDate ?? undefined,
+                  endDate: m.endDate ?? undefined,
+                });
+              }
+              await projectApi.completeSetup(token, p.id);
+            }
             setShowCreate(false);
             navigate(`/projects/${p.id}`);
           }}
         />
       )}
     </AppShell>
-  );
-}
-
-function CreateProjectModal({
-  open,
-  onClose,
-  onCreate,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onCreate: (name: string, description: string) => Promise<void>;
-}) {
-  const [step, setStep] = useState(1);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleCreate = async () => {
-    if (!name.trim() || loading) return;
-    setLoading(true);
-    try {
-      await onCreate(name.trim(), description.trim());
-      setStep(1);
-      setName("");
-      setDescription("");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={() => {
-        setStep(1);
-        setName("");
-        setDescription("");
-        onClose();
-      }}
-      title="New project"
-      width={620}
-      footer={
-        <>
-          <span className="auth-step">Step {step} of 2</span>
-          <div className="row gap-8">
-            {step > 1 && (
-              <button className="btn" onClick={() => setStep(1)}>
-                Back
-              </button>
-            )}
-            {step < 2 ? (
-              <button
-                className="btn btn-primary"
-                disabled={!name.trim()}
-                onClick={() => setStep(2)}
-              >
-                Continue
-              </button>
-            ) : (
-              <button className="btn btn-primary" onClick={handleCreate} disabled={loading}>
-                <Ico.check /> {loading ? "Creating…" : "Create project"}
-              </button>
-            )}
-          </div>
-        </>
-      }
-    >
-      {step === 1 && (
-        <div className="stack gap-16">
-          <div className="field">
-            <label className="field-label">Project name</label>
-            <input
-              className="input"
-              placeholder="e.g. Atlas Settlement Engine"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label className="field-label">Short description</label>
-            <textarea
-              className="textarea"
-              placeholder="What are you building?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            <span className="field-hint">
-              This is what developers see when they receive your invite.
-            </span>
-          </div>
-          <div className="field">
-            <label className="field-label">Repository</label>
-            <div className="input-wrap">
-              <Ico.github className="input-ico" />
-              <input className="input" placeholder="github.com/your-org/your-repo" />
-            </div>
-            <span className="field-hint">
-              Optional now — you can connect a repo later from the project page.
-            </span>
-          </div>
-        </div>
-      )}
-      {step === 2 && (
-        <div className="stack gap-16">
-          <div className="alert tip">
-            <Ico.sparkle className="icon" />
-            <div>
-              <div className="title">Have a spec?</div>
-              <div className="body">
-                Drop in a Markdown or PDF spec and Justra will draft milestones for you.
-              </div>
-            </div>
-          </div>
-          <div className="field">
-            <label className="field-label">Upload spec (optional)</label>
-            <div
-              style={{
-                border: "2px dashed var(--line-2)",
-                borderRadius: "var(--r-2)",
-                padding: "28px 18px",
-                textAlign: "center",
-                background: "var(--bg-2)",
-                color: "var(--ink-3)",
-              }}
-            >
-              <Ico.upload style={{ margin: "0 auto 8px", color: "var(--ink-4)" }} />
-              <div style={{ fontWeight: 600, color: "var(--ink)" }}>Drop a spec here</div>
-              <div style={{ fontSize: 12 }}>Markdown, PDF, or Notion export · up to 10 MB</div>
-            </div>
-          </div>
-        </div>
-      )}
-    </Modal>
   );
 }

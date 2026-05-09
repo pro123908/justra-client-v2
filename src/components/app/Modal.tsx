@@ -12,7 +12,7 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children, footer, width }: ModalProps) {
   if (!open) return null;
   return (
-    <div className="modal-mask" onClick={onClose}>
+    <div className="modal-mask open" onClick={onClose}>
       <div
         className="modal"
         style={width ? { width } : undefined}

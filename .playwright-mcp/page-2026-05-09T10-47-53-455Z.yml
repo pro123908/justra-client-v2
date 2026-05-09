@@ -1,0 +1,73 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: J
+      - generic [ref=e7]: Justra
+    - generic [ref=e8]:
+      - generic [ref=e9]: How it works
+      - generic [ref=e10]: For developers
+      - generic [ref=e11]: For clients
+      - generic [ref=e12]: Pricing
+    - generic [ref=e13]:
+      - button "Sign in" [ref=e14] [cursor=pointer]
+      - button "Get started" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - img [ref=e19]
+        - text: Trustless milestone escrow
+      - heading "Software work that pays out only when it's right." [level=1] [ref=e21]:
+        - text: Software work that pays out
+        - emphasis [ref=e22]: only when it's right.
+      - paragraph [ref=e23]: Justra brokers software contracts between clients and developers. Funds lock in on-chain escrow per milestone, code is graded against the spec by an AI review engine, and SOL releases the moment delivery is approved.
+      - generic [ref=e24]:
+        - button "Start a project" [ref=e25] [cursor=pointer]:
+          - text: Start a project
+          - img [ref=e26]
+        - button "View live demo" [ref=e28] [cursor=pointer]
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]: $4.2M
+          - text: locked across milestones
+        - generic [ref=e32]:
+          - generic [ref=e33]: 1,840
+          - text: projects shipped
+        - generic [ref=e34]:
+          - generic [ref=e35]: 97%
+          - text: release rate
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]: Live milestone
+        - generic [ref=e39]: In progress
+      - generic [ref=e41]: Atlas Settlement Engine
+      - generic [ref=e42]: M-03 · Auth & user provisioning
+      - generic [ref=e43]:
+        - generic [ref=e44]: Locked in escrow
+        - generic [ref=e45]: ◎ 8.4 SOL
+        - generic [ref=e46]: ≈ $1,386 USD · releases on approval
+      - generic [ref=e48]:
+        - generic [ref=e49]: Milestone progress
+        - generic [ref=e50]: 65%
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - generic [ref=e56]: M
+          - generic [ref=e57]: Maya Soto
+          - generic [ref=e58]: Provider
+        - generic [ref=e59]: 7Hk2…q4Bn
+  - generic [ref=e60]:
+    - generic [ref=e61]:
+      - text: How it works
+      - heading "Four steps from spec to settlement" [level=2] [ref=e62]
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - img [ref=e66]
+        - heading "1 · Define milestones" [level=4] [ref=e69]
+        - paragraph [ref=e70]: Upload your spec — Justra extracts checkpoints, scope, and acceptance criteria. Edit, then invite a developer.
+      - generic [ref=e71]:
+        - img [ref=e73]
+        - heading "2 · Lock funds in escrow" [level=4] [ref=e76]
+        - paragraph [ref=e77]: Each milestone gets its own on-chain PDA. Pay with SOL or card — funds are frozen until you sign off.
+      - generic [ref=e78]:
+        - img [ref=e80]
+        - heading "3 · AI-graded delivery" [level=4] [ref=e82]
+        - paragraph [ref=e83]: Developers ship to GitHub. Five LLM judges score the code against the spec — you see the verdict before releasing.

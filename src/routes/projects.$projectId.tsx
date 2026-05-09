@@ -1,26 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Modal from "@/components/app/Modal";
 import { AppShell } from "@/components/app/AppShell";
-import { PageHead } from "@/components/app/PageHead";
 import { StatusPill, STATUS_MAP } from "@/components/app/StatusPill";
 import { Ico } from "@/components/app/Icons";
 import { useAuth } from "@/lib/auth";
 import { formatSol } from "@/lib/utils";
 import {
   projectApi,
-  projectDocApi,
   inviteApi,
   milestoneApi,
   MilestoneStatus,
-  ProjectCreationStatus,
   type ProjectResponse,
   type MilestoneResponse,
   type InviteResponse,
   type ApiUser,
   type CreateMilestoneInput,
-  type ChatMessage,
-  type ExtractedMilestone,
 } from "@/lib/api";
 
 const shortenAddr = (addr: string) =>
@@ -36,7 +31,7 @@ const fmtDate = (s?: string | null) => {
 };
 
 export default function ProjectDetailPage() {
-  const { user, token } = useAuth();
+  const { user, token, isInitializing } = useAuth();
   const navigate = useNavigate();
   const { projectId = "" } = useParams();
 
@@ -51,9 +46,10 @@ export default function ProjectDetailPage() {
   const [createdMs, setCreatedMs] = useState<MilestoneResponse | null>(null);
 
   useEffect(() => {
+    if (isInitializing) return;
     if (!user) navigate("/auth");
     else if (!user.role) navigate("/role");
-  }, [user, navigate]);
+  }, [isInitializing, user, navigate]);
 
   useEffect(() => {
     if (!token || !user?.role) return;
@@ -127,20 +123,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </AppShell>
-    );
-  }
-
-  if (canManage && project.status === ProjectCreationStatus.PENDING) {
-    return (
-      <ProjectSetupView
-        project={project}
-        token={token!}
-        onSetupComplete={() =>
-          setProject((prev) =>
-            prev ? { ...prev, status: ProjectCreationStatus.CREATION_SUCCESSFUL } : prev,
-          )
-        }
-      />
     );
   }
 
@@ -303,6 +285,10 @@ export default function ProjectDetailPage() {
                       key={m.id}
                       className={`ms-row ${meta.row}`}
                       onClick={() => navigate(`/projects/${projectId}/milestones/${m.id}`)}
+                      style={{
+                        border: 0,
+                        borderBottom: i !== milestones.length - 1 ? "1px solid gray" : undefined,
+                      }}
                     >
                       <div className="ms-num">{String(i + 1).padStart(2, "0")}</div>
                       <div>
@@ -750,545 +736,5 @@ function ManageAccessModal({
         )}
       </div>
     </Modal>
-  );
-}
-
-function ProjectSetupView({
-  project,
-  token,
-  onSetupComplete,
-}: {
-  project: ProjectResponse;
-  token: string;
-  onSetupComplete: () => void;
-}) {
-  const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
-  const [docId, setDocId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const [input, setInput] = useState("");
-  const [approved, setApproved] = useState(false);
-  const [extractedMilestones, setExtractedMilestones] = useState<ExtractedMilestone[]>([]);
-  const [showReview, setShowReview] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setFile(f);
-      setDocId(null);
-      setMessages([]);
-      setApproved(false);
-      setAnalyzeError(null);
-    }
-    e.target.value = "";
-  };
-
-  const markApproved = async () => {
-    setApproved(true);
-    try {
-      await projectApi.completeSetup(token, project.id);
-    } catch {
-      // status update is best-effort; user can still proceed
-    }
-  };
-
-  const handleAnalyze = async () => {
-    if (!file || analyzing) return;
-    setAnalyzing(true);
-    setAnalyzeError(null);
-    try {
-      const res = await projectDocApi.upload(token, file);
-      setDocId(res.docId);
-      setMessages([{ role: "assistant", content: res.initialMessage }]);
-      setExtractedMilestones(res.milestones ?? []);
-      if (res.approved) await markApproved();
-    } catch (err) {
-      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  const handleSend = async () => {
-    if (!input.trim() || !docId || sending) return;
-    const userMsg: ChatMessage = { role: "user", content: input.trim() };
-    const next = [...messages, userMsg];
-    setMessages(next);
-    setInput("");
-    setSending(true);
-    setChatError(null);
-    try {
-      const res = await projectDocApi.chat(token, docId, next);
-      const updated = [...next, { role: "assistant" as const, content: res.reply }];
-      setMessages(updated);
-      if (res.approved) await markApproved();
-    } catch (err) {
-      setChatError(err instanceof Error ? err.message : "Failed to get response");
-      setMessages(messages);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleReset = () => {
-    setFile(null);
-    setDocId(null);
-    setMessages([]);
-    setApproved(false);
-    setExtractedMilestones([]);
-    setShowReview(false);
-    setInput("");
-    setAnalyzeError(null);
-    setChatError(null);
-  };
-
-  if (showReview) {
-    return (
-      <MilestoneReviewSection
-        project={project}
-        token={token}
-        extractedMilestones={extractedMilestones}
-        onBack={() => setShowReview(false)}
-        onComplete={onSetupComplete}
-      />
-    );
-  }
-
-  return (
-    <AppShell>
-      <div className="page">
-        <div className="crumb">
-          <a onClick={() => navigate("/projects")}>Projects</a>
-          <span className="sep">/</span>
-          <span className="now">{project.title}</span>
-        </div>
-        <PageHead
-          title={project.title}
-          subtitle="Upload your project specification to get started."
-        />
-
-        {/* File selection (before analysis) */}
-        {!docId && (
-          <div style={{ marginTop: 24 }}>
-            {!file ? (
-              <label
-                className="input"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  minHeight: 120,
-                  textAlign: "center",
-                }}
-              >
-                Click to attach project specification · PDF, DOCX, TXT, MD · max 10 MB
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
-                  style={{ display: "none" }}
-                  onChange={handleFileChange}
-                />
-              </label>
-            ) : (
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 16px",
-                    border: "1px solid var(--line)",
-                    borderRadius: 8,
-                  }}
-                >
-                  <span style={{ fontSize: 13 }}>📄 {file.name}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-dim)" }}>
-                    {(file.size / 1024).toFixed(0)} KB
-                  </span>
-                  <button
-                    className="btn"
-                    style={{ fontSize: 12, padding: "2px 10px" }}
-                    onClick={handleReset}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                {analyzeError && (
-                  <div style={{ color: "red", fontSize: 13, marginTop: 8 }}>{analyzeError}</div>
-                )}
-
-                <button
-                  className="btn btn-primary"
-                  style={{ marginTop: 16 }}
-                  onClick={handleAnalyze}
-                  disabled={analyzing}
-                >
-                  {analyzing ? "Analyzing…" : "Analyze Docs"}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Chat section (after analysis) */}
-        {docId && (
-          <div style={{ marginTop: 24 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                fontSize: 13,
-                color: "var(--ink-dim)",
-                marginBottom: 16,
-              }}
-            >
-              <span>📄 {file?.name}</span>
-              {!approved && (
-                <button
-                  className="btn"
-                  style={{ fontSize: 12, padding: "2px 10px", marginLeft: "auto" }}
-                  onClick={handleReset}
-                >
-                  Upload different document
-                </button>
-              )}
-            </div>
-
-            {approved && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  background: "var(--surface-2, #111)",
-                  border: "1px solid var(--neon)",
-                  borderRadius: 8,
-                  marginBottom: 16,
-                  gap: 16,
-                }}
-              >
-                <span style={{ color: "var(--neon)", fontSize: 13 }}>
-                  ✓ Documentation approved — you're ready to set up milestones
-                </span>
-                <button className="btn btn-primary" onClick={() => setShowReview(true)}>
-                  Create Milestones →
-                </button>
-              </div>
-            )}
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                maxHeight: 420,
-                overflowY: "auto",
-                padding: "8px 0",
-              }}
-            >
-              {messages.map((m, i) => (
-                <div
-                  key={i}
-                  style={{
-                    alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                    maxWidth: "80%",
-                    background: m.role === "user" ? "var(--neon)" : "var(--surface-2, #1a1a1a)",
-                    color: m.role === "user" ? "#000" : "var(--ink)",
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    fontSize: 13,
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {m.content}
-                </div>
-              ))}
-              {sending && (
-                <div style={{ alignSelf: "flex-start", fontSize: 13, color: "var(--ink-dim)" }}>
-                  Thinking…
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {chatError && (
-              <div style={{ color: "red", fontSize: 12, marginTop: 4 }}>{chatError}</div>
-            )}
-
-            {!approved && (
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <input
-                  className="input"
-                  style={{ flex: 1 }}
-                  placeholder="Ask the AI or clarify your specification…"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  disabled={sending}
-                />
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSend}
-                  disabled={!input.trim() || sending}
-                >
-                  Send
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </AppShell>
-  );
-}
-
-type EditableMilestone = {
-  title: string;
-  description: string;
-  amount: string;
-  startDate: string;
-  endDate: string;
-};
-
-function MilestoneReviewSection({
-  project,
-  token,
-  extractedMilestones,
-  onBack,
-  onComplete,
-}: {
-  project: ProjectResponse;
-  token: string;
-  extractedMilestones: ExtractedMilestone[];
-  onBack: () => void;
-  onComplete: () => void;
-}) {
-  const navigate = useNavigate();
-  const [selectedProviderId, setSelectedProviderId] = useState("");
-  const [invites, setInvites] = useState<InviteResponse[]>([]);
-  const [milestones, setMilestones] = useState<EditableMilestone[]>(() =>
-    extractedMilestones.map((m) => ({
-      title: m.title,
-      description: m.description,
-      amount: m.amount ?? "",
-      startDate: "",
-      endDate: m.deadline ?? "",
-    })),
-  );
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    inviteApi
-      .getProjectInvites(token, project.id)
-      .then(setInvites)
-      .catch(() => {});
-  }, [token, project.id]);
-
-  const acceptedProviders = project.members ?? [];
-  const invitedProviders = invites
-    .filter((i) => i.status === "PENDING" || i.status === "pending")
-    .map((i) => i.for)
-    .filter((u) => !acceptedProviders.some((p) => p.id === u.id));
-  const allProviders = [...acceptedProviders, ...invitedProviders];
-
-  const updateMilestone = (idx: number, patch: Partial<EditableMilestone>) => {
-    setMilestones((prev) => prev.map((m, i) => (i === idx ? { ...m, ...patch } : m)));
-  };
-
-  const allFilled = milestones.every(
-    (m) => m.title.trim() && m.description.trim() && m.amount?.trim(),
-  );
-
-  const handleCreateAll = async () => {
-    if (!allFilled || submitting) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      for (const m of milestones) {
-        await milestoneApi.create(token, project.id, {
-          providerId: selectedProviderId || undefined,
-          title: m.title.trim(),
-          description: m.description.trim(),
-          amount: m.amount.trim(),
-          startDate: m.startDate || undefined,
-          endDate: m.endDate || undefined,
-        });
-      }
-      onComplete();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create milestones");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <AppShell>
-      <div className="page">
-        <div className="crumb">
-          <a onClick={() => navigate("/projects")}>Projects</a>
-          <span className="sep">/</span>
-          <span className="now">{project.title}</span>
-        </div>
-        <PageHead
-          title={project.title}
-          subtitle={`${milestones.length} milestone${milestones.length !== 1 ? "s" : ""} extracted from your document. Fill in any missing fields, assign a provider, then create them all.`}
-        />
-
-        {/* Provider assignment */}
-        <div style={{ marginTop: 24 }}>
-          <div className="field">
-            <label className="field-label">Assign provider (applies to all milestones)</label>
-            {allProviders.length === 0 ? (
-              <div className="muted" style={{ fontSize: 13 }}>
-                No providers invited yet.{" "}
-                <span
-                  className="link"
-                  style={{ cursor: "pointer", color: "var(--brand-600)" }}
-                  onClick={() => navigate(`/projects/${project.id}/invites`)}
-                >
-                  Invite one first →
-                </span>
-              </div>
-            ) : (
-              <select
-                className="input"
-                value={selectedProviderId}
-                onChange={(e) => setSelectedProviderId(e.target.value)}
-              >
-                <option value="">— select provider —</option>
-                {acceptedProviders.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {shortenAddr(p.publicKey)} · Active
-                  </option>
-                ))}
-                {invitedProviders.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {shortenAddr(p.publicKey)} · Invited
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        </div>
-
-        {/* Milestone cards */}
-        <div className="review-ms-list">
-          {milestones.map((m, idx) => (
-            <div key={idx} className="review-ms-card">
-              <div className="review-ms-num">{String(idx + 1).padStart(2, "0")}</div>
-              <div className="review-ms-fields">
-                <div className="review-ms-card-header">
-                  <span className="review-ms-card-label">
-                    Milestone {String(idx + 1).padStart(2, "0")}
-                  </span>
-                </div>
-
-                <div className="field">
-                  <label className="field-label">Title</label>
-                  <input
-                    className="input"
-                    value={m.title}
-                    onChange={(e) => updateMilestone(idx, { title: e.target.value })}
-                  />
-                </div>
-
-                <div className="field">
-                  <label className="field-label">Description</label>
-                  <textarea
-                    className="textarea"
-                    value={m.description}
-                    onChange={(e) => updateMilestone(idx, { description: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="row gap-16">
-                  <div className="field" style={{ flex: 1 }}>
-                    <label className="field-label">Start date</label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={m.startDate}
-                      onChange={(e) => updateMilestone(idx, { startDate: e.target.value })}
-                    />
-                  </div>
-                  <div className="field" style={{ flex: 1 }}>
-                    <label className="field-label">End / deadline</label>
-                    <input
-                      type="date"
-                      className="input"
-                      value={m.endDate}
-                      onChange={(e) => updateMilestone(idx, { endDate: e.target.value })}
-                      min={m.startDate || undefined}
-                    />
-                  </div>
-                </div>
-
-                <div className="field">
-                  <label className="field-label">
-                    Amount (SOL)
-                    {!m.amount && (
-                      <span style={{ color: "var(--amber)", marginLeft: 6 }}>· required</span>
-                    )}
-                  </label>
-                  <input
-                    className="input"
-                    placeholder="e.g. 1.5"
-                    inputMode="decimal"
-                    value={m.amount}
-                    onChange={(e) => updateMilestone(idx, { amount: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {error && <div style={{ color: "red", fontSize: 13, marginTop: 16 }}>{error}</div>}
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 12,
-            marginTop: 32,
-            marginBottom: 48,
-          }}
-        >
-          <button className="btn" onClick={onBack} disabled={submitting}>
-            ← Back
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={!allFilled || submitting}
-            onClick={handleCreateAll}
-          >
-            {submitting
-              ? `Creating milestones…`
-              : `Create ${milestones.length} Milestone${milestones.length !== 1 ? "s" : ""}`}
-          </button>
-        </div>
-      </div>
-    </AppShell>
   );
 }

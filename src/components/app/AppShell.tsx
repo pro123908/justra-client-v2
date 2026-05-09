@@ -31,6 +31,7 @@ export function AppShell({ children, onCreate }: AppShellProps) {
     name: user?.name ?? "Wallet",
     short: user?.short ?? "",
     initial: user?.initial ?? "A",
+    address: user?.address,
   };
 
   return (

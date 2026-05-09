@@ -4,14 +4,14 @@ import { AppShell } from "@/components/app/AppShell";
 import { PageHead } from "@/components/app/PageHead";
 import { StatusPill } from "@/components/app/StatusPill";
 import { Ico } from "@/components/app/Icons";
-import Modal from "@/components/app/Modal";
 import { useAuth } from "@/lib/auth";
 import { useAppData, type Project } from "@/lib/app-data";
 import { githubApi } from "@/lib/api";
+import { CreateProjectModal } from "@/components/app/CreateProjectModal";
 import { buildGithubAppInstallUrl } from "@/routes/github";
 
 export default function DashboardPage() {
-  const { user, token } = useAuth();
+  const { user, token, isInitializing } = useAuth();
   const navigate = useNavigate();
   const { createProject, projectsOwnedBy, projectsForProvider, invitesForProvider, acceptInvite } =
     useAppData();
@@ -21,10 +21,11 @@ export default function DashboardPage() {
   const [installationId, setInstallationId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isInitializing) return;
     if (!user) navigate("/auth");
     else if (!user.role) navigate("/role");
     else if (user.role === "provider" && !user.githubUsername) navigate("/github");
-  }, [user, navigate]);
+  }, [isInitializing, user, navigate]);
 
   useEffect(() => {
     if (!token || !user?.githubUsername) return;
@@ -73,23 +74,43 @@ export default function DashboardPage() {
         {/* Stat grid — 4 cards */}
         <div className="stat-grid">
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--brand">
+                <Ico.folder width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Active projects</div>
             <div className="stat-val">{projects.length}</div>
-            <div className="stat-sub row gap-4">
-              <Ico.trend /> All time
+            <div className="stat-sub">
+              <Ico.trend width={12} height={12} /> All time
             </div>
           </div>
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--info">
+                <Ico.lock width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Total locked</div>
             <div className="stat-val">◎ 0</div>
             <div className="stat-sub">Across all milestones</div>
           </div>
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--ok">
+                <Ico.sparkle width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Released</div>
             <div className="stat-val">◎ 0</div>
             <div className="stat-sub">To providers</div>
           </div>
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--warn">
+                <Ico.trend width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">On-time rate</div>
             <div className="stat-val">—</div>
             <div className="stat-sub">No data yet</div>
@@ -180,11 +201,11 @@ export default function DashboardPage() {
       <CreateProjectModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(p) => {
+        onCreate={async (name, description, docId) => {
+          const p = await createProject({ name, description, docId });
           setCreateOpen(false);
           navigate(`/projects/${p.id}`);
         }}
-        createProject={(input) => createProject(input)}
       />
     </AppShell>
   );
@@ -216,21 +237,41 @@ function ProviderDashboard({
 
         <div className="stat-grid">
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--brand">
+                <Ico.briefcase width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Active engagements</div>
             <div className="stat-val">{projects.length}</div>
             <div className="stat-sub">Current</div>
           </div>
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--warn">
+                <Ico.bell width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Pending invites</div>
             <div className="stat-val">{invites.length}</div>
             <div className="stat-sub">Awaiting response</div>
           </div>
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--ok">
+                <Ico.sparkle width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Earned</div>
             <div className="stat-val">◎ 0</div>
             <div className="stat-sub">Lifetime</div>
           </div>
           <div className="stat-card">
+            <div className="stat-card-top">
+              <div className="stat-card-ico stat-card-ico--info">
+                <Ico.trend width={17} height={17} />
+              </div>
+            </div>
             <div className="stat-label">Completion rate</div>
             <div className="stat-val">—</div>
             <div className="stat-sub">No data yet</div>
@@ -284,7 +325,7 @@ function ProviderDashboard({
         )}
 
         {/* Pending invites */}
-        <div className="row-between" style={{ marginBottom: 12 }}>
+        <div className="row-between" style={{ marginBottom: 12, marginTop: 24 }}>
           <h2 className="h-display h3" style={{ margin: 0 }}>
             Pending invites
           </h2>
@@ -319,87 +360,5 @@ function ProviderDashboard({
         )}
       </div>
     </AppShell>
-  );
-}
-
-function CreateProjectModal({
-  open,
-  onClose,
-  onCreated,
-  createProject,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onCreated: (p: Project) => void;
-  createProject: (input: { name: string; description: string }) => Promise<Project>;
-}) {
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setCreating(false);
-      setCreateError(null);
-    }
-  }, [open]);
-
-  const handleCreate = async () => {
-    if (!name.trim() || creating) return;
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const p = await createProject({ name: name.trim(), description: "" });
-      onCreated(p);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create project");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="New project"
-      width={560}
-      footer={
-        <div className="row-between" style={{ width: "100%" }}>
-          <span className="muted-2" style={{ fontSize: 13 }}>
-            {createError || "Enter a name to get started"}
-          </span>
-          <div className="row gap-8">
-            <button className="btn" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-primary"
-              disabled={!name.trim() || creating}
-              onClick={handleCreate}
-            >
-              <Ico.check /> {creating ? "Creating…" : "Create project"}
-            </button>
-          </div>
-        </div>
-      }
-    >
-      <div className="stack gap-16">
-        <div className="field">
-          <label className="field-label">Project name</label>
-          <input
-            className="input"
-            placeholder="e.g. Atlas Settlement Engine"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-            }}
-            autoFocus
-          />
-        </div>
-      </div>
-    </Modal>
   );
 }
