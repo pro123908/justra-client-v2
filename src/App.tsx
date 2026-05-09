@@ -1,5 +1,6 @@
 import { Buffer } from "buffer";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/lib/auth";
 import { AppDataProvider } from "@/lib/app-data";
 import IndexPage from "@/routes/index";
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <Analytics />
         </BrowserRouter>
       </AppDataProvider>
     </AuthProvider>
