@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import Modal from "@/components/app/Modal";
 import { Ico } from "@/components/app/Icons";
 import { useAuth } from "@/lib/auth";
-import { projectDocApi, type ExtractedMilestone, type ChatMessage } from "@/lib/api";
+import {
+  projectDocApi,
+  projectApi,
+  milestoneApi,
+  type ExtractedMilestone,
+  type ChatMessage,
+} from "@/lib/api";
+import { useAppData } from "@/lib/app-data";
 
 type EditableMilestone = {
   title: string;
@@ -22,21 +29,17 @@ function fromExtracted(m: ExtractedMilestone): EditableMilestone {
   };
 }
 
-type SpecState = "idle" | "uploading" | "approved" | "rejected" | "error";
+type SpecState = "idle" | "uploading" | "approved" | "rejected" | "invalid" | "error";
 
 interface CreateProjectModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (
-    name: string,
-    description: string,
-    docId?: string,
-    milestones?: EditableMilestone[],
-  ) => Promise<void>;
+  onCreated: (projectId: string) => void;
 }
 
-export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectModalProps) {
+export function CreateProjectModal({ open, onClose, onCreated }: CreateProjectModalProps) {
   const { token } = useAuth();
+  const { createProject } = useAppData();
 
   // Step 1 fields
   const [name, setName] = useState("");
@@ -49,6 +52,7 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
   const [specState, setSpecState] = useState<SpecState>("idle");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [docId, setDocId] = useState<string | null>(null);
+  const [specErrors, setSpecErrors] = useState<string[]>([]);
   const [milestones, setMilestones] = useState<EditableMilestone[]>([]);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -84,6 +88,7 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
     setSpecState("idle");
     setUploadError(null);
     setDocId(null);
+    setSpecErrors([]);
     setMilestones([]);
     setDragging(false);
     setChatMessages([]);
@@ -99,6 +104,11 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
     setMilestones([]);
     try {
       const res = await projectDocApi.upload(token, file);
+      if (res.status === "fail") {
+        setSpecErrors(res.errors);
+        setSpecState("invalid");
+        return;
+      }
       setDocId(res.docId);
       if (res.approved) {
         setMilestones(res.milestones.map(fromExtracted));
@@ -147,12 +157,24 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
     if (!name.trim() || loading) return;
     setLoading(true);
     try {
-      await onCreate(
-        name.trim(),
-        description.trim(),
-        docId ?? undefined,
-        milestones.length > 0 ? milestones : undefined,
-      );
+      const p = await createProject({
+        name: name.trim(),
+        description: description.trim(),
+        docId: docId ?? undefined,
+      });
+      if (milestones.length > 0 && token) {
+        for (const m of milestones) {
+          await milestoneApi.create(token, p.id, {
+            title: m.title,
+            description: m.description,
+            amount: m.amount ?? "",
+            startDate: m.startDate ?? undefined,
+            endDate: m.endDate ?? undefined,
+          });
+        }
+        await projectApi.completeSetup(token, p.id);
+      }
+      onCreated(p.id);
     } finally {
       setLoading(false);
     }
@@ -215,16 +237,27 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
           <>
             <span className="auth-step">Step 2 of 2</span>
             <div className="row gap-8">
-              <button
-                className="btn"
-                onClick={() => {
-                  resetSpec();
-                }}
-              >
+              <button className="btn" onClick={() => setStep(1)}>
+                Back
+              </button>
+              <button className="btn btn-primary" onClick={resetSpec}>
                 Re-upload
               </button>
-              <button className="btn btn-primary" onClick={handleCreate} disabled={loading}>
-                <Ico.check /> {loading ? "Creating…" : "Create without spec"}
+            </div>
+          </>
+        );
+      }
+
+      if (specState === "invalid") {
+        return (
+          <>
+            <span className="auth-step">Step 2 of 2</span>
+            <div className="row gap-8">
+              <button className="btn" onClick={() => setStep(1)}>
+                Back
+              </button>
+              <button className="btn" onClick={resetSpec}>
+                Re-upload
               </button>
             </div>
           </>
@@ -238,9 +271,6 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
           <div className="row gap-8">
             <button className="btn" onClick={() => setStep(1)}>
               Back
-            </button>
-            <button className="btn btn-primary" onClick={handleCreate} disabled={loading}>
-              <Ico.check /> {loading ? "Creating…" : "Skip & create"}
             </button>
           </div>
         </>
@@ -307,6 +337,58 @@ export function CreateProjectModal({ open, onClose, onCreate }: CreateProjectMod
             <span className="field-hint">
               Optional now — you can connect a repo later from the project page.
             </span>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && specState === "invalid" && (
+        <div className="stack gap-16">
+          <div className="alert danger">
+            <Ico.x className="icon" />
+            <div>
+              <div className="title">Spec rejected — cannot proceed</div>
+              <div className="body">
+                Your document could not be parsed as a valid project spec. Fix the issues below and
+                re-upload.
+              </div>
+            </div>
+          </div>
+          <div className="stack gap-6">
+            {specErrors.map((e, i) => (
+              <div
+                key={i}
+                className="row gap-8"
+                style={{
+                  alignItems: "flex-start",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "var(--danger-bg)",
+                  border: "1px solid color-mix(in srgb, var(--danger) 35%, transparent)",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: "var(--danger)",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                >
+                  {i + 1}
+                </span>
+                <span style={{ fontSize: 13, color: "var(--danger-ink)", lineHeight: 1.5 }}>
+                  {e}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}

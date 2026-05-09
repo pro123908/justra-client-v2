@@ -208,12 +208,15 @@ export interface ExtractedMilestone {
   amount: string | null;
 }
 
-export interface UploadDocResponse {
-  docId: string;
-  initialMessage: string;
-  approved: boolean;
-  milestones: ExtractedMilestone[];
-}
+export type UploadDocResponse =
+  | { status: "fail"; errors: string[] }
+  | {
+      status: "ok";
+      docId: string;
+      initialMessage: string;
+      approved: boolean;
+      milestones: ExtractedMilestone[];
+    };
 
 export interface ChatDocResponse {
   reply: string;
@@ -457,6 +460,26 @@ export const milestoneApi = {
     apiFetch<{ url: string }>("/milestone/pinata-gateway-url", {
       headers: { Authorization: `Bearer ${token}` },
     }),
+
+  downloadRepoZip: async (token: string, id: string): Promise<void> => {
+    const res = await fetch(`${BASE_URL}/milestone/${id}/download-zip`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw Object.assign(new Error(text || `Request failed: ${res.status}`), { status: res.status });
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `milestone-${id.slice(0, 8)}.zip`;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const analysisApi = {

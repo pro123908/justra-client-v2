@@ -6,11 +6,10 @@ import { AppShell } from "@/components/app/AppShell";
 import { PageHead } from "@/components/app/PageHead";
 import { Ico } from "@/components/app/Icons";
 import { CreateProjectModal } from "@/components/app/CreateProjectModal";
-import { projectApi, milestoneApi } from "@/lib/api";
 
 export default function ProjectsPage() {
-  const { user, token } = useAuth();
-  const { projectsOwnedBy, projectsForProvider, createProject } = useAppData();
+  const { user } = useAuth();
+  const { projectsOwnedBy, projectsForProvider } = useAppData();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"all" | "recent">("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -105,22 +104,9 @@ export default function ProjectsPage() {
         <CreateProjectModal
           open={showCreate}
           onClose={() => setShowCreate(false)}
-          onCreate={async (name, description, docId, milestones) => {
-            const p = await createProject({ name, description, docId });
-            if (milestones && milestones.length > 0 && token) {
-              for (const m of milestones) {
-                await milestoneApi.create(token, p.id, {
-                  title: m.title,
-                  description: m.description,
-                  amount: m.amount ?? "",
-                  startDate: m.startDate ?? undefined,
-                  endDate: m.endDate ?? undefined,
-                });
-              }
-              await projectApi.completeSetup(token, p.id);
-            }
+          onCreated={(projectId) => {
             setShowCreate(false);
-            navigate(`/projects/${p.id}`);
+            navigate(`/projects/${projectId}`);
           }}
         />
       )}

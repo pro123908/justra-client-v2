@@ -13,7 +13,7 @@ import { buildGithubAppInstallUrl } from "@/routes/github";
 export default function DashboardPage() {
   const { user, token, isInitializing } = useAuth();
   const navigate = useNavigate();
-  const { createProject, projectsOwnedBy, projectsForProvider, invitesForProvider, acceptInvite } =
+  const { projectsOwnedBy, projectsForProvider, invitesForProvider, acceptInvite } =
     useAppData();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -201,10 +201,9 @@ export default function DashboardPage() {
       <CreateProjectModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreate={async (name, description, docId) => {
-          const p = await createProject({ name, description, docId });
+        onCreated={(projectId) => {
           setCreateOpen(false);
-          navigate(`/projects/${p.id}`);
+          navigate(`/projects/${projectId}`);
         }}
       />
     </AppShell>

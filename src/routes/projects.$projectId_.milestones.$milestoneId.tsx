@@ -124,6 +124,7 @@ export default function MilestoneDetailPage() {
   const [depositError, setDepositError] = useState("");
   const [depositMethod, setDepositMethod] = useState<"crypto" | "fiat" | null>(null);
   const [fiatCard, setFiatCard] = useState({ name: "", number: "", exp: "", cvc: "" });
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (isInitializing) return;
@@ -183,7 +184,20 @@ export default function MilestoneDetailPage() {
   const isProvider = user.role === "provider";
   const isActionable = isProvider && milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL;
   const isConsumer = user.role === "consumer";
+  const isCompleted = milestone.status === MilestoneStatus.COMPLETED;
   const needsDeposit = isConsumer && milestone.status === MilestoneStatus.WAITING_FOR_DEPOSIT;
+
+  const handleDownloadZip = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await milestoneApi.downloadRepoZip(token!, milestoneId);
+    } catch {
+      // silently ignore — user can retry
+    } finally {
+      setDownloading(false);
+    }
+  };
   const canAssignProvider =
     isConsumer &&
     (milestone.status === MilestoneStatus.PENDING_PROVIDER_APPROVAL ||
@@ -374,6 +388,11 @@ export default function MilestoneDetailPage() {
             <button className="btn" onClick={() => navigate(`/projects/${projectId}`)}>
               ← Back
             </button>
+            {isConsumer && isCompleted && (
+              <button className="btn" onClick={handleDownloadZip} disabled={downloading}>
+                {downloading ? "Downloading…" : "↓ Download zip"}
+              </button>
+            )}
             {/* {canAssignProvider && (
               <button className="btn" onClick={() => setAssignOpen(true)}>
                 <Ico.user /> {milestone.provider ? "Reassign provider" : "Assign provider"}
