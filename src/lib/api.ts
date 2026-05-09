@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = "http://18.207.201.23:3000";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
@@ -467,7 +467,9 @@ export const milestoneApi = {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
-      throw Object.assign(new Error(text || `Request failed: ${res.status}`), { status: res.status });
+      throw Object.assign(new Error(text || `Request failed: ${res.status}`), {
+        status: res.status,
+      });
     }
     const disposition = res.headers.get("Content-Disposition") ?? "";
     const match = disposition.match(/filename="([^"]+)"/);
