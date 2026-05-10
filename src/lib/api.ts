@@ -1,4 +1,4 @@
-const BASE_URL = "http://18.207.201.23:3000";
+const BASE_URL = "https://1545-18-207-201-23.ngrok-free.app";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = init?.body instanceof FormData;
