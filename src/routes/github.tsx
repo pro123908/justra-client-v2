@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { Ico } from "@/components/app/Icons";
 
 export function buildGithubAppInstallUrl(state?: string) {
-  const appSlug = import.meta.env.VITE_GITHUB_APP_SLUG as string;
+  const appSlug = "git-escrow";
   const params = new URLSearchParams({ redirect_uri: `${window.location.origin}/github-callback` });
   if (state) params.set("state", state);
   return `https://github.com/apps/${appSlug}/installations/new?${params.toString()}`;
