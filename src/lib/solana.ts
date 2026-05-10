@@ -184,7 +184,7 @@ export async function initializeMilestone(params: InitializeMilestoneParams): Pr
         milestonePda: pda,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
+      .rpc({ skipPreflight: true });
 
     return sig;
   } catch (e) {
@@ -222,7 +222,7 @@ export async function disputeMilestone(params: DisputeMilestoneParams): Promise<
         consumer,
         milestonePda: pda,
       })
-      .rpc();
+      .rpc({ skipPreflight: true });
 
     return sig;
   } catch (e) {
@@ -258,7 +258,7 @@ export async function releaseMilestoneFunds(params: ReleaseMilestoneFundsParams)
         milestonePda: pda,
         systemProgram: SystemProgram.programId,
       })
-      .rpc();
+      .rpc({ skipPreflight: true });
 
     return sig;
   } catch (e) {
